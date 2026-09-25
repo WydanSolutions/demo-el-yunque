@@ -763,6 +763,57 @@ details summary::-webkit-details-marker{display:none}
   .reng{grid-template-columns:minmax(0,1fr) 70px 36px}
 }
 
+/* ================================================================
+   Versión simple (pedido del 25/09/2026): pocas cosas a la vista,
+   letras más grandes y lo secundario a un toque.
+   ================================================================ */
+body{font-size:15px}
+/* Inicio: accesos grandes */
+.atajos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.atajo{display:flex;align-items:center;gap:14px;padding:18px 20px;border-radius:16px;background:#fff;border:1px solid var(--borde-2);box-shadow:var(--sombra);text-align:left;transition:.15s}
+.atajo:hover{border-color:var(--azul);transform:translateY(-2px)}
+.atajo>svg.ico{width:30px;height:30px;padding:10px;box-sizing:content-box;border-radius:14px;background:var(--azul-tenue);color:var(--azul);flex:none}
+.atajo b{display:block;font-family:var(--f-titulo);font-size:24px;text-transform:uppercase;color:var(--azul);line-height:1.1}
+.atajo small{font-size:14px;color:var(--texto-2)}
+.atajo.destacado{background:var(--naranja);border-color:var(--naranja)}
+.atajo.destacado>svg.ico{background:rgba(255,255,255,.35);color:var(--naranja-texto)}
+.atajo.destacado b,.atajo.destacado small{color:var(--naranja-texto)}
+/* Números simples (sin tarjetas de colores) */
+.numeros{display:flex;flex-wrap:wrap;gap:0;margin-top:16px;background:#fff;border:1px solid var(--borde-2);border-radius:16px;box-shadow:var(--sombra)}
+.numero{flex:1;min-width:180px;padding:16px 22px;display:flex;flex-direction:column}
+.numero+.numero{border-left:1px solid var(--borde-2)}
+.numero small{font-size:14px;color:var(--texto-2);font-weight:600}
+.numero b{font-family:var(--f-titulo);font-size:34px;color:var(--texto);line-height:1.15}
+.numero span{font-size:13.5px;color:var(--texto-3)}
+/* Para atender */
+.fila-lista.atender{justify-content:flex-start;padding:13px 4px}
+.at-t{flex:1;font-size:15.5px;font-weight:500}
+.punto{width:10px;height:10px;border-radius:50%;flex:none;background:var(--azul)}
+.punto.p-rojo{background:var(--rojo)} .punto.p-amarillo{background:var(--amarillo-vivo)}
+.campana-panel .cp-it b{font-weight:600}
+/* Ficha de producto: un número grande */
+.hay{display:flex;gap:20px;align-items:center;flex-wrap:wrap;padding:14px 18px;border-radius:14px;background:var(--azul-tenue)}
+.hay small{display:block;font-size:14px;color:var(--texto-2);font-weight:600}
+.hay b{font-family:var(--f-titulo);font-size:44px;line-height:1;color:var(--azul)}
+.hay b span{font-size:20px;color:var(--texto-3)}
+.hay b.neg{color:var(--rojo)} .hay b.am{color:var(--amarillo)}
+.hay-det{font-size:14px;color:var(--texto-2);line-height:1.7}
+/* Tablas simples: más aire */
+.tabla-simple td{padding:13px 16px;font-size:15px}
+.tabla-simple .p-nombre{font-size:15px}
+/* Menú «Más opciones» */
+.mas-caja{position:relative}
+.mas-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:260px;background:#fff;border:1px solid var(--borde-2);border-radius:12px;box-shadow:var(--sombra-2);padding:6px;z-index:40}
+.mas-menu button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;border-radius:8px;font-size:14.5px}
+.mas-menu button:hover{background:var(--azul-tenue);color:var(--azul)}
+@media (max-width:900px){
+  .atajos{grid-template-columns:minmax(0,1fr)}
+  .atajo{padding:14px 16px}
+  .numero+.numero{border-left:none;border-top:1px solid var(--borde-2)}
+  .numero{min-width:100%}
+  .mas-menu{left:0;right:auto}
+}
+
 </style>
 </head>
 <body>
@@ -1180,6 +1231,16 @@ const numCSV = n => String(Math.round((n || 0) * 100) / 100).replace('.', ',');
 
 // Generador de números "al azar" pero siempre iguales (para los datos de ejemplo)
 function azar(semilla){ let a = semilla >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+/* ---------- «Más opciones»: lo que se usa poco queda guardado acá, a un toque ---------- */
+function menuMas(items){   // items: [[ícono, texto, acción], ...]
+  items = items.filter(Boolean); if (!items.length) return '';
+  return `<div class="mas-caja"><button class="btn btn-linea" onclick="alternarMas(this)" aria-haspopup="true">${ico('menu')} Más opciones</button>
+    <div class="mas-menu hidden">${items.map(([i, t, f]) => `<button onclick="cerrarMas(); ${f}">${ico(i)} ${t}</button>`).join('')}</div></div>`;
+}
+function alternarMas(b){ const m = b.nextElementSibling, abierto = !m.classList.contains('hidden'); cerrarMas(); if (!abierto) m.classList.remove('hidden'); }
+function cerrarMas(){ $$('.mas-menu').forEach(m => m.classList.add('hidden')); }
+document.addEventListener('click', e => { if (!e.target.closest('.mas-caja')) cerrarMas(); });
 
 
 /* ===== js/03-datos.js ===== */
@@ -2040,7 +2101,7 @@ function pintarUsuario(){
 function pintarNav(){
   const a = alertas();
   const nStock = a.filter(x => x.sec === 'stock' && x.nivel === 'rojo').reduce((s, x) => s + x.n, 0);
-  const badge = { stock:nStock, entregas: entregasPendientesHoy().length, vender: esDueno() ? D().ventas.filter(pendienteFactura).length : 0 };
+  const badge = { stock:nStock, entregas: entregasPendientesHoy().length };
   $('#lat-nav').innerHTML = SECCIONES.filter(s => puedeVer(s.id)).map(s =>
     (s.sep ? '<div class="nav-sep"></div>' : '') +
     `<button class="nav-item ${s.id === seccionActual ? 'on' : ''}" onclick="ir('${s.id}')" ${s.id === seccionActual ? 'aria-current="page"' : ''}>
@@ -2104,7 +2165,7 @@ function alternarCampana(){ const p = $('#campana-panel'); if (p.classList.conta
 function abrirCampana(){
   const a = alertas();
   $('#campana-panel').innerHTML = `<div class="cp-cab">Avisos</div>` + (a.length ? a.map(x =>
-    `<button class="cp-it" onclick="cerrarCampana(); ${x.ir}"><span class="cp-n chip-${x.nivel}">${x.n}</span><span><b>${x.t}</b><small>${esc(x.sub)}</small></span></button>`).join('')
+    `<button class="cp-it" onclick="cerrarCampana(); ${x.ir}"><span class="cp-n chip-${x.nivel}">${x.n}</span><span><b>${fraseAviso(x)}</b></span></button>`).join('')
     : vacio('Todo en orden. No hay avisos.'));
   $('#campana-panel').classList.remove('hidden');
 }
@@ -2155,9 +2216,10 @@ function prepararBuscador(){
 
 /* ===== js/07-inicio.js ===== */
 /* =====================================================================
-   INICIO · distinto según quién entra
-   - Funcionario: sus ventas del día, entregas de hoy y alertas de stock.
-   - Dueños: además caja, ventas del mes, facturación, stock y cuentas.
+   INICIO · simple a propósito: pocos números, lo que hay que atender
+   y las ventas de hoy. El detalle está en cada sección.
+   - Funcionario: sus ventas del día y lo que hay que atender (stock y entregas).
+   - Dueños: además la caja y lo vendido en el mes.
    ===================================================================== */
 RENDER.inicio = function(){
   const h = hoy(), dueno = esDueno();
@@ -2165,73 +2227,60 @@ RENDER.inicio = function(){
   const mias = dueno ? hoyV : hoyV.filter(v => v.vend === 'func');
   const totHoy = mias.reduce((s, v) => s + netoVenta(v), 0);
   const ent = entregasPendientesHoy();
-  const prods = D().productos.map(p => [p, info(p)]);
-  const n = e => prods.filter(([p, i]) => i.estados.includes(e)).length;
-  const prox = prods.filter(([p, i]) => i.prox30 + i.prox60 > 0).length;
 
-  encabezado(saludo() + ', ' + USUARIOS[PERFIL].quien,
-    dueno ? 'Así viene el negocio hoy.' : 'Tus ventas de hoy y lo que hay que mirar del stock.',
-    `<button class="btn btn-linea" onclick="nuevoPresupuesto()">${ico('presupuesto')} Nuevo presupuesto</button>`);
+  encabezado(saludo() + ', ' + USUARIOS[PERFIL].quien, '¿Qué querés hacer?', '');
 
-  let html = `<div class="grid g-4">
-    ${kpi(dueno ? 'Ventas de hoy' : 'Mis ventas de hoy', pesos(totHoy), mias.length + ' venta' + (mias.length === 1 ? '' : 's'), { ico:'vender', cls:'k-naranja', click:"verVentas('hoy')" })}
-    ${kpi('Entregas de hoy', ent.length, ent.length ? ent.filter(v => v.ent.est === 'camino').length + ' en camino' : 'Nada pendiente', { ico:'camion', click:"ir('entregas')" })}
-    ${kpi('En falta', n('falta'), n('bajo') + ' más bajo el mínimo', { ico:'alerta', cls: n('falta') ? 'k-rojo' : '', click:"verStock('falta')" })}
-    ${kpi('Próximos a vencer', prox, n('vencido') ? n('vencido') + ' con lotes vencidos' : 'En los próximos ' + D().config.diasVence + ' días', { ico:'vence', cls: n('vencido') ? 'k-rojo' : (prox ? 'k-amarillo' : ''), click:"verStock('proximo')" })}
+  const atajo = (icono, t, sub, fn, cls) => `<button class="atajo ${cls || ''}" onclick="${fn}">${ico(icono)}<span><b>${t}</b><small>${sub}</small></span></button>`;
+  let html = `<div class="atajos">
+    ${atajo('vender', 'Vender', 'Cobrar una venta', 'nuevaVenta()', 'destacado')}
+    ${atajo('buscar', 'Consultar stock', 'Ver cuánto hay y precios', "verStock('todos')")}
+    ${atajo('camion', 'Entregas', ent.length ? ent.length + ' para hoy' : 'Nada para hoy', "ir('entregas')")}
   </div>`;
 
+  const numero = (t, v, sub) => `<div class="numero"><small>${t}</small><b class="num">${v}</b><span>${sub}</span></div>`;
   if (dueno){
     const caja = cajaDelDia(h), mes = resultadoMes(mesClave(h));
-    const mesAnt = resultadoMes(mesClave(sumarMeses(h, -1)));
-    const diaMes = aFecha(h).getDate();
-    const antMismoDia = D().ventas.filter(v => ventaActiva(v) && mesClave(v.f) === mesAnt.mes && aFecha(v.f).getDate() <= diaMes).reduce((s, v) => s + netoVenta(v), 0);
-    const varMes = antMismoDia ? (mes.vendido - antMismoDia) / antMismoDia * 100 : 0;
-    const pf = D().ventas.filter(pendienteFactura), pfM = pf.reduce((s, v) => s + netoVenta(v), 0);
-    const vs = valorStock(), inm = inmovilizado();
-    const cc = ccIndice().porCli, aCobrar = Object.values(cc).reduce((s, x) => s + Math.max(0, x.saldo), 0);
-    const cp = cpIndice(); let aPagar7 = 0, aPagarTot = 0;
-    Object.values(cp).forEach(x => x.pendientes.forEach(p => { aPagarTot += p.debe; if (p.compra.venc && difDias(h, p.compra.venc) <= 7) aPagar7 += p.debe; }));
-    const com = comisionAPagar(inicioMes(h), h), liqImp = D().liquidaciones.filter(l => !l.pagada).reduce((s, l) => s + l.monto, 0);
-    html += `<div class="grid g-4 mt">
-      ${kpi('Caja del día', caja.abierta ? pesos(caja.esperado) : 'Sin abrir', caja.abierta ? 'Efectivo que debería haber' + (caja.cierre ? ' · cerrada' : '') : 'Abrirla desde Finanzas', { ico:'caja', click:"verFinanzas('caja')" })}
-      ${kpi('Ventas del mes', pesos(mes.vendido), mes.n + ' ventas · ' + (varMes >= 0 ? '▲ ' : '▼ ') + pct(Math.abs(varMes)) + ' contra el mes pasado a esta altura', { ico:'finanzas', click:"verFinanzas('resultado')" })}
-      ${kpi('Pendientes de factura', pf.length, pesos(pfM) + ' sin facturar', { ico:'factura', cls: pf.length ? 'k-amarillo' : '', click:"verVentas('pendiente')" })}
-      ${kpi('Comisiones a pagar', pesos(com.total + liqImp), (liqImp ? pesos(liqImp) + ' ya liquidado · ' : '') + 'acumulado del mes ' + pesos(com.total), { ico:'personal', click:"verPersonal('comisiones')" })}
-    </div>
-    <div class="grid g-4 mt">
-      ${kpi('Valor del stock', pesos(vs.costo), 'A costo · ' + pesos(vs.venta) + ' a precio de venta', { ico:'stock', click:"verStock('todos')" })}
-      ${kpi('Plata inmovilizada', pesos(inm.monto), inm.lista.length + ' productos sin ventas en ' + D().config.diasSinVentas + ' días', { ico:'reloj', cls: inm.monto ? 'k-amarillo' : '', click:"verStock('sinmov')" })}
-      ${kpi('Cuentas a cobrar', pesos(aCobrar), 'Saldo de cuentas corrientes de clientes', { ico:'clientes', click:"verFinanzas('cuentas')" })}
-      ${kpi('Cuentas a pagar', pesos(aPagar7), 'Vencen en 7 días · total ' + pesos(aPagarTot), { ico:'compras', cls: aPagar7 ? 'k-amarillo' : '', click:"verFinanzas('cuentas')" })}
-    </div>`;
+    html += `<div class="numeros">${numero('Vendido hoy', pesos(totHoy), mias.length + ' venta' + (mias.length === 1 ? '' : 's'))}
+      ${numero('En la caja', caja.abierta ? pesos(caja.esperado) : '—', caja.abierta ? 'efectivo' : 'sin abrir')}
+      ${numero('Vendido en ' + MESES[aFecha(h).getMonth()], pesos(mes.vendido), mes.n + ' ventas')}</div>`;
+  } else {
+    html += `<div class="numeros">${numero('Vendiste hoy', pesos(totHoy), mias.length + ' venta' + (mias.length === 1 ? '' : 's'))}</div>`;
   }
 
-  // Detalle: ventas de hoy + lo que hay que mirar
-  const atencion = prods.filter(([p, i]) => ['falta', 'vencido', 'bajo'].includes(i.estado) || i.prox30 > 0)
-    .sort((a, b) => ['falta', 'vencido', 'bajo', 'proximo'].indexOf(a[1].estado) - ['falta', 'vencido', 'bajo', 'proximo'].indexOf(b[1].estado)).slice(0, 8);
+  // Lo que hay que atender: las mismas alertas de la campanita, dichas en palabras simples (máximo 5)
+  const a = alertas().slice(0, 5);
   html += `<div class="grid g-2 mt">
-    <div class="card">
-      <div class="card-cab"><div class="card-t">${dueno ? 'Ventas de hoy' : 'Mis ventas de hoy'} <span class="card-num">${mias.length}</span></div><a class="link" onclick="verVentas('hoy')">Ver todas ${ico('der')}</a></div>
-      ${mias.length ? `<div class="lista">${mias.slice().reverse().slice(0, 7).map(filaVentaCorta).join('')}</div>` : vacio('Todavía no hay ventas hoy. Tocá <b>Nueva venta</b> para empezar.')}
-    </div>
-    <div class="card">
-      <div class="card-cab"><div class="card-t">Stock para mirar <span class="card-num">${atencion.length}</span></div><a class="link" onclick="verStock('alertas')">Ver alertas ${ico('der')}</a></div>
-      ${atencion.length ? `<div class="lista">${atencion.map(([p, i]) => `<button class="fila-lista" onclick="fichaProducto('${p.id}')">
-        <span><span class="p-nombre">${esc(p.nombre)}</span><span class="p-cod">${p.cod} · disponible ${cant(i.disp)} ${unidadCorta(p)} · mínimo ${cant(p.min)}</span></span>
-        ${chipEstadoProd(i.estado === 'normal' || i.estado === 'sinmov' ? 'proximo' : i.estado)}</button>`).join('')}</div>` : vacio('El stock está en orden.')}
-    </div>
+    <div class="card"><div class="card-cab"><div class="card-t">Para atender</div></div>
+      ${a.length ? `<div class="lista">${a.map(x => `<button class="fila-lista atender" onclick="${x.ir}"><span class="punto p-${x.nivel}"></span>
+        <span class="at-t">${fraseAviso(x)}</span><span class="link">Ver ${ico('der')}</span></button>`).join('')}</div>` : vacio('Todo en orden. No hay nada pendiente.')}</div>
+    <div class="card"><div class="card-cab"><div class="card-t">${dueno ? 'Ventas de hoy' : 'Tus ventas de hoy'}</div>${mias.length ? `<a class="link" onclick="verVentas('hoy')">Ver todas ${ico('der')}</a>` : ''}</div>
+      ${mias.length ? `<div class="lista">${mias.slice().reverse().slice(0, 5).map(filaVentaCorta).join('')}</div>` : vacio('Todavía no hay ventas hoy.')}</div>
   </div>`;
-  if (ent.length) html += `<div class="card mt"><div class="card-cab"><div class="card-t">Entregas de hoy <span class="card-num">${ent.length}</span></div>
-    <button class="btn btn-linea btn-sm" onclick="imprimirHojaRuta('${h}')">${ico('imprimir')} Hoja de ruta</button></div>
-    <div class="lista">${ent.map(v => `<button class="fila-lista" onclick="fichaEntrega('${v.id}')"><span><span class="p-nombre">${esc(nombreCli(v.cli))}</span>
-      <span class="p-cod">${ico('pin')} ${esc(v.ent.dir)} · ${esc(v.ent.zona)}${v.ent.f < h ? ' · <b class="neg">atrasada desde ' + fMedia(v.ent.f) + '</b>' : ''}</span></span>${chipEntrega(v.ent.est)}</button>`).join('')}</div></div>`;
   $('#vista').innerHTML = html;
 };
 
+// Cada aviso en una frase corta y clara
+function fraseAviso(x){
+  const n = x.n, s = n === 1 ? '' : 's';
+  const frases = {
+    'Productos en falta': `${n} producto${s} sin stock`,
+    'Productos con lotes vencidos': `${n} producto${s} con mercadería vencida`,
+    'Productos bajo el mínimo': `${n} producto${s} con poco stock`,
+    'Vencen en los próximos 30 días': `${n} producto${s} vence${n === 1 ? '' : 'n'} este mes`,
+    'Entregas para hoy sin terminar': `${n} entrega${s} para hoy`,
+    'Pedidos a proveedores demorados': `${n} pedido${s} a proveedores demorado${s}`,
+    'Ventas pendientes de factura': `${n} venta${s} sin factura`,
+    'Facturas de proveedores por pagar': `${n} factura${s} de proveedores para pagar esta semana`,
+    'Clientes por encima de su límite': `${n} cliente${s} pasado${s} de su límite de crédito`,
+    'La caja de hoy no está abierta': 'La caja de hoy no está abierta'
+  };
+  return frases[x.t] || (n + ' · ' + x.t);
+}
+
 function filaVentaCorta(v){
   return `<button class="fila-lista" onclick="fichaVenta('${v.id}')">
-    <span><span class="p-nombre">Nº ${v.num} · ${esc(nombreCli(v.cli))}</span><span class="p-cod">${v.h} · ${v.it.length} producto${v.it.length > 1 ? 's' : ''} · ${v.pago} · ${vendedorTxt(v)}</span></span>
-    <span class="derecha"><b class="num">${pesos(netoVenta(v))}</b><br>${v.fac ? '' : '<span class="chip chip-fac">Pendiente de factura</span>'}</span></button>`;
+    <span><span class="p-nombre">${esc(nombreCli(v.cli))}</span><span class="p-cod">${v.h} · ${v.pago}${v.fac ? '' : ' · <b class="am">sin factura</b>'}</span></span>
+    <b class="num">${pesos(netoVenta(v))}</b></button>`;
 }
 
 
@@ -2253,8 +2302,8 @@ RENDER.vender = function(){
   const nAco = D().ventas.filter(v => v.aco && pendienteEntrega(v)).length;
   encabezado('Vender', t === 'mostrador' ? 'Buscá el producto o escaneá el código de barras.' : '',
     t === 'mostrador' ? `<button class="btn btn-linea" onclick="nuevoPresupuesto()">${ico('presupuesto')} Nuevo presupuesto</button>`
-    : t === 'ventas' ? btnExportar('exportarVentas') : t === 'presupuestos' ? `<button class="btn btn-azul" onclick="nuevoPresupuesto()">${ico('mas')} Nuevo presupuesto</button>` : '');
-  let html = pestanas([['mostrador', 'Mostrador'], ['ventas', 'Ventas', nPend ? nPend + ' sin factura' : '', true], ['presupuestos', 'Presupuestos', nPre], ['acopios', 'Acopios', nAco]], t, 'tabVender');
+    : t === 'ventas' ? menuMas([['descargar', 'Exportar a Excel', 'exportarVentas()']]) : t === 'presupuestos' ? `<button class="btn btn-azul" onclick="nuevoPresupuesto()">${ico('mas')} Nuevo presupuesto</button>` : '');
+  let html = pestanas([['mostrador', 'Mostrador'], ['ventas', 'Ventas'], ['presupuestos', 'Presupuestos', nPre], ['acopios', 'Acopios', nAco]], t, 'tabVender');
   $('#vista').innerHTML = html + '<div id="vender-cuerpo"></div>';
   if (t === 'mostrador') pintarMostrador();
   else if (t === 'ventas') pintarListaVentas();
@@ -2513,29 +2562,33 @@ function ventasFiltradas(){
     && (!q || sinTildes(nombreCli(v.cli) + ' ' + v.num + ' ' + (v.fac ? v.fac.n : '') + ' ' + v.it.map(i => i.n).join(' ')).includes(q)))
     .sort((x, y) => (y.f + y.h).localeCompare(x.f + x.h));
 }
+let _masFiltrosV = false;
 function pintarListaVentas(){
   const e = EST_VENTAS, lista = ventasFiltradas();
   const activas = lista.filter(ventaActiva), tot = activas.reduce((s, v) => s + netoVenta(v), 0);
-  const pend = D().ventas.filter(pendienteFactura), pendM = pend.reduce((s, v) => s + netoVenta(v), 0);
+  const pend = D().ventas.filter(pendienteFactura);
   const { filas, mas } = paginar(lista, e, 'EST_VENTAS.ver+=100;pintarListaVentas()');
   const opc = (arr, v) => arr.map(x => `<option value="${x[0]}" ${x[0] === v ? 'selected' : ''}>${x[1]}</option>`).join('');
+  const hayFiltros = e.vend || e.pago || e.estado === 'devolucion' || e.estado === 'facturada';
   $('#vender-cuerpo').innerHTML = `
-    ${pend.length ? `<button class="banda-fac" onclick="EST_VENTAS.estado='pendiente';EST_VENTAS.periodo='todo';pintarListaVentas()">${ico('factura')}
-      <span><b>${pend.length} venta${pend.length > 1 ? 's' : ''} pendiente${pend.length > 1 ? 's' : ''} de factura</b> · ${pesos(pendM)} sin facturar</span><span class="link">Ver ${ico('der')}</span></button>` : ''}
     <div class="herr">
-      ${buscador('v-q', e.q, 'Cliente, Nº de venta, factura o producto', 'filtroVentasQ')}
+      ${buscador('v-q', e.q, 'Buscar cliente o Nº de venta', 'filtroVentasQ')}
       <select class="sel" onchange="EST_VENTAS.periodo=this.value;EST_VENTAS.ver=60;pintarListaVentas()" aria-label="Período">${opc(PERIODOS, e.periodo)}</select>
+      <button class="link" onclick="_masFiltrosV=!_masFiltrosV;pintarListaVentas()">${_masFiltrosV || hayFiltros ? 'Menos filtros' : 'Más filtros'}</button>
+    </div>
+    ${_masFiltrosV || hayFiltros ? `<div class="herr">
       <select class="sel" onchange="EST_VENTAS.vend=this.value;pintarListaVentas()" aria-label="Vendedor">${opc([['', 'Todos los vendedores'], ['func', 'Funcionario'], ['duenos', 'Dueños']], e.vend)}</select>
       <select class="sel" onchange="EST_VENTAS.pago=this.value;pintarListaVentas()" aria-label="Forma de pago">${opc([['', 'Todas las formas de pago']].concat(FORMAS_PAGO.map(f => [f, f])), e.pago)}</select>
-    </div>
-    <div class="herr">${pildoras([['todas', 'Todas'], ['facturada', 'Facturadas'], ['pendiente', 'Pendientes de factura', null, 'p-amarillo'], ['devolucion', 'Con devolución'], ['anulada', 'Anuladas']], e.estado, 'filtroVentasEstado')}
+      <select class="sel" onchange="filtroVentasEstado(this.value)" aria-label="Estado">${opc([['todas', 'Cualquier estado'], ['facturada', 'Facturadas'], ['pendiente', 'Sin factura'], ['devolucion', 'Con devolución'], ['anulada', 'Anuladas']], e.estado)}</select></div>` : ''}
+    <div class="herr">${pildoras([['todas', 'Todas'], ['pendiente', 'Sin factura', pend.length, 'p-amarillo'], ['anulada', 'Anuladas']], e.estado, 'filtroVentasEstado')}
       <span class="muted chico" style="margin-left:auto">${lista.length} ventas · <b class="t2 num">${pesos(tot)}</b></span></div>
-    <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla">
-      <thead><tr><th>Nº</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th>Pago</th><th>Estado</th><th class="derecha">Total</th></tr></thead>
+    <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla tabla-simple">
+      <thead><tr><th>Cuándo</th><th>Cliente</th><th>Pago</th><th class="derecha">Total</th><th></th></tr></thead>
       <tbody>${filas.map(v => `<tr class="clic ${ventaActiva(v) ? '' : 'anulada'}" onclick="fichaVenta('${v.id}')">
-        <td class="fuerte num">${v.num}</td><td class="num">${fMedia(v.f)} <span class="muted">${v.h}</span></td>
-        <td>${esc(nombreCli(v.cli))}${v.ent ? ' ' + ico('camion', 'ico-chico') : ''}</td><td>${vendedorTxt(v)}</td><td>${v.pago}</td>
-        <td>${chipsVenta(v)}</td><td class="derecha num fuerte">${pesos(ventaActiva(v) ? netoVenta(v) : v.tot)}</td></tr>`).join('')}</tbody></table></div>
+        <td class="num">${v.f === hoy() ? 'Hoy' : fMedia(v.f)} <span class="muted">${v.h}</span></td>
+        <td><span class="p-nombre">${esc(nombreCli(v.cli))}</span><span class="p-cod">Venta Nº ${v.num}</span></td><td class="t2">${v.pago}</td>
+        <td class="derecha num fuerte">${pesos(ventaActiva(v) ? netoVenta(v) : v.tot)}</td>
+        <td class="derecha">${!ventaActiva(v) ? '<span class="chip c-gris">Anulada</span>' : v.fac ? '' : '<span class="chip chip-fac">Sin factura</span>'}</td></tr>`).join('')}</tbody></table></div>
       ${lista.length ? '' : vacio('No hay ventas con estos filtros.')}${mas}</div>`;
 }
 let _tVQ;
@@ -2763,64 +2816,70 @@ function guardarRetiro(id){
    El funcionario consulta todo, pero NO ve costos ni márgenes.
    ===================================================================== */
 const EST_STOCK = { tab:'productos', filtro:'todos', q:'', cat:'', prov:'', ver:80 };
+const GRUPO_FILTRO = { falta:'reponer', bajo:'reponer', proximo:'vence', vencido:'vence' };
 function verStock(filtro){
   EST_STOCK.ver = 80;
   if (filtro === 'alertas') EST_STOCK.tab = 'alertas';
-  else { EST_STOCK.tab = 'productos'; EST_STOCK.filtro = filtro || 'todos'; EST_STOCK.q = ''; }
+  else { EST_STOCK.tab = 'productos'; EST_STOCK.filtro = GRUPO_FILTRO[filtro] || filtro || 'todos'; EST_STOCK.q = ''; }
   if (seccionActual !== 'stock') ir('stock'); else RENDER.stock();
 }
 RENDER.stock = function(){
   const t = EST_STOCK.tab, dueno = esDueno();
-  const nAl = alertas().filter(a => a.sec === 'stock').reduce((s, a) => s + a.n, 0);
-  const nLista = D().productos.filter(p => ['falta', 'bajo'].includes(info(p).estado)).length;
-  encabezado('Stock', D().productos.length + ' productos · el stock se actualiza solo con cada venta, compra y devolución.',
-    (dueno ? `<button class="btn btn-linea" onclick="formAjuste()">${ico('ajuste')} Ajustar stock</button>
-      <button class="btn btn-linea" onclick="formPreciosMasivo()">${ico('porcentaje')} Actualizar precios</button>
-      <button class="btn btn-azul" onclick="formProducto()">${ico('mas')} Nuevo producto</button>` : '') + (t === 'productos' ? btnExportar('exportarProductos') : ''));
-  const tabs = [['productos', 'Productos'], ['alertas', 'Alertas', nAl, true], ['lista', 'Lista de compra', nLista], ['movimientos', 'Movimientos']];
-  if (dueno) tabs.push(['inventario', 'Inventario físico']);
+  const nAl = alertas().filter(a => a.sec === 'stock').length;
+  encabezado('Stock', 'Se actualiza solo con cada venta, compra y devolución.',
+    menuMas([
+      dueno && ['ajuste', 'Ajustar stock (rotura, pérdida…)', 'formAjuste()'],
+      dueno && ['porcentaje', 'Actualizar precios en bloque', 'formPreciosMasivo()'],
+      dueno && ['lista', 'Hacer inventario físico', "tabStock('inventario')"],
+      ['historial', 'Ver todos los movimientos', "tabStock('movimientos')"],
+      ['descargar', 'Exportar a Excel', 'exportarProductos()']
+    ]) + (dueno ? `<button class="btn btn-azul" onclick="formProducto()">${ico('mas')} Nuevo producto</button>` : ''));
+  const tabs = [['productos', 'Productos'], ['alertas', 'Avisos', nAl, true], ['lista', 'Para comprar']];
+  if (t === 'movimientos') tabs.push(['movimientos', 'Movimientos']);
+  if (t === 'inventario') tabs.push(['inventario', 'Inventario físico']);
   $('#vista').innerHTML = pestanas(tabs, t, 'tabStock') + '<div id="stock-cuerpo"></div>';
   ({ productos:pintarProductos, alertas:pintarAlertasStock, lista:pintarListaCompra, movimientos:pintarMovimientos, inventario:pintarInventario })[t]();
 };
 function tabStock(t){ EST_STOCK.tab = t; EST_STOCK.ver = 80; RENDER.stock(); }
 
-/* ---------- Lista de productos ---------- */
+/* ---------- Lista de productos (pocas columnas: el detalle está en la ficha) ---------- */
+function cumpleFiltro(i, f){
+  if (f === 'todos') return true;
+  if (f === 'reponer') return i.estados.includes('falta') || i.estados.includes('bajo');
+  if (f === 'vence') return i.estados.includes('proximo') || i.estados.includes('vencido');
+  return i.estados.includes(f);
+}
 function productosFiltrados(){
-  const e = EST_STOCK, q = sinTildes(e.q).split(/\s+/).filter(Boolean);
+  const e = EST_STOCK, q = sinTildes(e.q).split(/s+/).filter(Boolean);
   return D().productos.filter(p => {
-    const i = info(p);
-    if (e.filtro !== 'todos' && !(e.filtro === 'normal' ? !i.estados.length : i.estados.includes(e.filtro))) return false;
+    if (!cumpleFiltro(info(p), e.filtro)) return false;
     if (e.cat && p.cat !== e.cat) return false;
-    if (e.prov && p.prov !== e.prov) return false;
     const t = sinTildes(p.nombre + ' ' + p.cod + ' ' + p.marca + ' ' + p.barras);
     return q.every(w => t.includes(w));
-  }).sort((a, b) => a.cat.localeCompare(b.cat) || a.nombre.localeCompare(b.nombre));
+  }).sort((a, b) => a.nombre.localeCompare(b.nombre));
+}
+function chipSimple(p){
+  const e = info(p).estado;
+  return e === 'normal' ? '' : chipEstadoProd(e);
 }
 function pintarProductos(){
-  const e = EST_STOCK, dueno = esDueno(), lista = productosFiltrados();
-  const cnt = k => D().productos.filter(p => k === 'normal' ? !info(p).estados.length : info(p).estados.includes(k)).length;
+  const e = EST_STOCK, lista = productosFiltrados();
+  const cnt = f => D().productos.filter(p => cumpleFiltro(info(p), f)).length;
   const { filas, mas } = paginar(lista, e, 'EST_STOCK.ver+=100;pintarProductos()');
-  const vs = valorStock();
   $('#stock-cuerpo').innerHTML = `
-    ${dueno ? `<div class="banda-valor"><span>${ico('dinero')} Valor total del stock</span><span>A costo <b class="num">${pesos(vs.costo)}</b></span><span>A precio de venta <b class="num">${pesos(vs.venta)}</b></span><span class="muted">Ganancia posible ${pesos(vs.venta - vs.costo)}</span></div>` : ''}
     <div class="herr">
-      ${buscador('s-q', e.q, 'Nombre, código, marca o código de barras', 'filtroStockQ')}
+      ${buscador('s-q', e.q, 'Buscar producto por nombre o código', 'filtroStockQ')}
       <select class="sel" onchange="EST_STOCK.cat=this.value;pintarProductos()" aria-label="Categoría"><option value="">Todas las categorías</option>${D().config.categorias.map(c => `<option ${c === e.cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
-      <select class="sel" onchange="EST_STOCK.prov=this.value;pintarProductos()" aria-label="Proveedor"><option value="">Todos los proveedores</option>${D().proveedores.map(p => `<option value="${p.id}" ${p.id === e.prov ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}</select>
     </div>
-    <div class="herr">${pildoras([['todos', 'Todos', D().productos.length], ['normal', 'Normal', cnt('normal')], ['bajo', 'Bajo mínimo', cnt('bajo'), 'p-amarillo'], ['falta', 'En falta', cnt('falta'), 'p-rojo'],
-      ['proximo', 'Próximo a vencer', cnt('proximo'), 'p-amarillo'], ['vencido', 'Vencido', cnt('vencido'), 'p-rojo'], ['sinmov', 'Sin movimiento', cnt('sinmov')]], e.filtro, 'filtroStock')}</div>
-    <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla">
-      <thead><tr><th>Producto</th><th>Categoría</th><th class="derecha">Stock</th><th class="derecha">Reservado</th><th class="derecha">Disponible</th><th class="derecha">Mínimo</th>
-        <th class="derecha">Precio</th>${dueno ? '<th class="derecha">Costo</th><th class="derecha">Margen</th>' : ''}<th>Estado</th></tr></thead>
-      <tbody>${filas.map(p => { const i = info(p), u = unidadCorta(p);
-        return `<tr class="clic" onclick="fichaProducto('${p.id}')"><td><span class="p-nombre">${esc(p.nombre)}</span><span class="p-cod">${p.cod} · ${esc(p.marca)}${p.vence ? ' · por lote' : ''}</span></td>
-          <td class="t2">${esc(p.cat)}</td><td class="derecha num">${cant(i.st)} <span class="muted">${u}</span></td>
-          <td class="derecha num ${i.res ? 'am' : 'muted'}">${i.res ? cant(i.res) : '—'}</td>
-          <td class="derecha num fuerte ${i.disp <= 0 ? 'neg' : i.disp <= p.min ? 'am' : ''}">${cant(i.disp)}</td><td class="derecha num muted">${cant(p.min)}</td>
-          <td class="derecha num">${pesos(p.precio)}</td>${dueno ? `<td class="derecha num t2">${pesos(p.costo)}</td><td class="derecha num t2">${pct(margenDe(p))}</td>` : ''}
-          <td>${chipsProd(p)}</td></tr>`; }).join('')}</tbody></table></div>
-      ${lista.length ? '' : vacio('No hay productos con estos filtros.')}${mas}</div>`;
+    <div class="herr">${pildoras([['todos', 'Todos'], ['reponer', 'Para reponer', cnt('reponer'), 'p-rojo'], ['vence', 'Por vencer', cnt('vence'), 'p-amarillo'], ['sinmov', 'No se venden', cnt('sinmov')]], e.filtro, 'filtroStock')}</div>
+    <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla tabla-simple">
+      <thead><tr><th>Producto</th><th class="derecha">Hay</th><th class="derecha">Precio</th><th></th></tr></thead>
+      <tbody>${filas.map(p => { const i = info(p);
+        return `<tr class="clic" onclick="fichaProducto('${p.id}')"><td><span class="p-nombre">${esc(p.nombre)}</span><span class="p-cod">${p.cod}</span></td>
+          <td class="derecha num fuerte ${i.disp <= 0 ? 'neg' : i.disp <= p.min ? 'am' : ''}">${cant(i.disp)} <span class="muted">${unidadCorta(p)}</span></td>
+          <td class="derecha num">${pesos(p.precio)}</td><td class="derecha">${chipSimple(p)}</td></tr>`; }).join('')}</tbody></table></div>
+      ${lista.length ? '' : vacio('No hay productos con estos filtros.')}${mas}</div>
+    <p class="muted chico mt-s">Tocá un producto para ver todo: stock, reservado, lotes, costos e historial.</p>`;
 }
 let _tSQ;
 function filtroStockQ(v){ EST_STOCK.q = v; EST_STOCK.ver = 80; clearTimeout(_tSQ); _tSQ = setTimeout(() => { pintarProductos(); const i = $('#s-q'); i.focus(); i.setSelectionRange(v.length, v.length); }, 200); }
@@ -2843,12 +2902,9 @@ function fichaProducto(id){
     return `<tr><td class="fuerte">${esc(l.lote)}</td><td class="derecha num">${cant(l.c)} ${u}</td><td>${l.vence ? fCorta(l.vence) : '—'}</td><td>${chip}</td></tr>`; }).join('') : '';
   abrirModal({ titulo:esc(p.nombre), sub:`${p.cod} · ${esc(p.cat)} · ${esc(p.marca)}`, ancho:'lg', foco:false,
     cuerpo:`<div class="fila">${chipsProd(p)}</div>
-      <div class="stock-cajas mt-s">
-        <div><small>Stock actual</small><b class="num">${cant(i.st)}</b><span>${u}</span></div>
-        <div><small>Reservado</small><b class="num ${i.res ? 'am' : ''}">${cant(i.res)}</b><span>para entregas y acopios</span></div>
-        <div class="dest"><small>Disponible</small><b class="num ${i.disp <= 0 ? 'neg' : ''}">${cant(i.disp)}</b><span>mínimo ${cant(p.min)}</span></div>
-        <div><small>Vendido este mes</small><b class="num">${cant(i.vendMes)}</b><span>${i.ult ? 'última venta ' + cuando(i.ult) : 'sin ventas'}</span></div>
-      </div>
+      <div class="hay mt-s"><div><small>Hay para vender</small><b class="num ${i.disp <= 0 ? 'neg' : i.disp <= p.min ? 'am' : ''}">${cant(i.disp)} <span>${u}</span></b></div>
+        <div class="hay-det">En el local: <b>${cant(i.st)}</b>${i.res ? ` · Reservado para entregas y acopios: <b>${cant(i.res)}</b>` : ''} · Mínimo: <b>${cant(p.min)}</b>
+          <br>Vendido este mes: <b>${cant(i.vendMes)}</b>${i.ult ? ' · última venta ' + cuando(i.ult) : ''}</div></div>
       <div class="datos mt">
         <div><small>Precio de venta</small><b>${pesos(p.precio)} <span class="muted">/ ${u} · IVA inc.</span></b></div>
         ${dueno ? `<div><small>Costo</small><b>${pesos(p.costo)}</b></div><div><small>Margen</small><b>${pct(margenDe(p))}</b></div>` : ''}
@@ -2859,9 +2915,9 @@ function fichaProducto(id){
       </div>
       ${p.vence ? `<h3 class="sub-t mt">Lotes <small>se vende primero el que vence antes</small></h3>
         <div class="tabla-caja"><table class="tabla"><thead><tr><th>Lote</th><th class="derecha">Cantidad</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${lotes}</tbody></table>${p.lotes.length ? '' : vacio('Sin lotes con stock.')}</div>` : ''}
-      <h3 class="sub-t mt">Historial de movimientos</h3>
-      <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla"><thead><tr><th>Fecha</th><th>Motivo</th><th>Detalle</th><th class="derecha">Cantidad</th><th>Usuario</th></tr></thead>
-        <tbody>${movs.map(filaMov).join('')}</tbody></table></div>${movs.length ? '' : vacio('Todavía no tiene movimientos.')}</div>`,
+      <details class="mt"><summary class="sub-t link">Ver historial de movimientos (${movs.length})</summary>
+      <div class="tabla-caja mt-s"><div class="tabla-scroll"><table class="tabla"><thead><tr><th>Fecha</th><th>Motivo</th><th>Detalle</th><th class="derecha">Cantidad</th><th>Usuario</th></tr></thead>
+        <tbody>${movs.map(filaMov).join('')}</tbody></table></div>${movs.length ? '' : vacio('Todavía no tiene movimientos.')}</div></details>`,
     pie:`${dueno ? `<button class="btn btn-linea izq" onclick="formProducto('${id}')">${ico('editar')} Editar</button><button class="btn btn-linea" onclick="formAjuste('${id}')">${ico('ajuste')} Ajustar stock</button>` : ''}
       <button class="btn btn-naranja" onclick="cerrarModal(); agregarAlCarro('${id}'); nuevaVentaSinPreguntar()">${ico('vender')} Vender</button>` });
 }
@@ -2938,17 +2994,18 @@ function pintarAlertasStock(){
   const fila = (p, der, extra) => `<button class="fila-lista" onclick="fichaProducto('${p.id}')"><span><span class="p-nombre">${esc(p.nombre)}</span><span class="p-cod">${p.cod}${extra ? ' · ' + extra : ''}</span></span><span class="derecha">${der}</span></button>`;
   const tarjeta = (t, sub, n, cls, cuerpo, acc) => `<div class="card alerta-card ${cls}"><div class="card-cab"><div class="card-t">${t} <span class="card-num">${n}</span><small>${sub}</small></div>${acc || ''}</div>
     ${n ? `<div class="lista">${cuerpo}</div>` : vacio('Nada por acá.')}</div>`;
+  const venceTodo = vencidos.concat(prox);
   $('#stock-cuerpo').innerHTML = `<div class="grid g-2">
-    ${tarjeta('En falta', 'Sin stock disponible', falta.length, 'ac-rojo', falta.map(([p, i]) => fila(p, `<b class="neg num">${cant(i.disp)} ${unidadCorta(p)}</b>`, i.res ? 'reservado ' + cant(i.res) : 'mínimo ' + cant(p.min))).join(''),
-      `<button class="btn btn-linea btn-sm" onclick="tabStock('lista')">${ico('lista')} Lista de compra</button>`)}
-    ${tarjeta('Bajo el mínimo', 'Todavía hay, pero poco', bajo.length, 'ac-amarillo', bajo.map(([p, i]) => fila(p, `<b class="am num">${cant(i.disp)}</b> <span class="muted">/ mín. ${cant(p.min)}</span>`, nombreProv(p.prov))).join(''))}
-    ${tarjeta('Vencidos', 'Lotes que ya vencieron', vencidos.length, 'ac-rojo', vencidos.map(x => fila(x.p, `<span class="chip c-rojo">${cant(x.l.c)} ${unidadCorta(x.p)}</span>`, 'lote ' + esc(x.l.lote) + ' · venció ' + cuando(x.l.vence))).join(''),
-      dueno && vencidos.length ? '<small class="muted">Sacarlos con «Ajustar stock» (motivo: pérdida)</small>' : '')}
-    ${tarjeta('Próximos a vencer', 'En los próximos 30 y ' + cfg.diasVence + ' días', prox.length, 'ac-amarillo', prox.map(x => fila(x.p, `<span class="chip ${x.d <= 30 ? 'c-rojo' : 'c-amarillo'}">${x.d <= 30 ? '≤ 30 días' : '≤ ' + cfg.diasVence + ' días'}</span>`, 'lote ' + esc(x.l.lote) + ' · ' + cant(x.l.c) + ' ' + unidadCorta(x.p) + ' · vence ' + fMedia(x.l.vence))).join(''))}
-    ${tarjeta('Sin ventas en ' + cfg.diasSinVentas + ' días', dueno ? 'Plata inmovilizada: <b class="t2">' + pesos(inm.monto) + '</b> (a costo)' : 'Productos que no se mueven', inm.lista.length, '',
+    ${tarjeta('Sin stock', 'No hay para vender', falta.length, 'ac-rojo', falta.map(([p, i]) => fila(p, `<b class="neg num">${cant(i.disp)} ${unidadCorta(p)}</b>`)).join(''),
+      falta.length ? `<button class="btn btn-linea btn-sm" onclick="tabStock('lista')">${ico('lista')} Pedir</button>` : '')}
+    ${tarjeta('Poco stock', 'Quedan menos que el mínimo', bajo.length, 'ac-amarillo', bajo.map(([p, i]) => fila(p, `<b class="am num">${cant(i.disp)}</b> <span class="muted">de ${cant(p.min)}</span>`)).join(''))}
+    ${tarjeta('Por vencer', 'Vencidos y los que vencen en ' + cfg.diasVence + ' días', venceTodo.length, 'ac-rojo', venceTodo.map(x => fila(x.p,
+      `<span class="chip ${x.d < 0 ? 'c-rojo' : x.d <= 30 ? 'c-rojo' : 'c-amarillo'}">${x.d < 0 ? 'Vencido' : 'Vence ' + cuando(x.l.vence)}</span>`, cant(x.l.c) + ' ' + unidadCorta(x.p) + ' · lote ' + esc(x.l.lote))).join(''))}
+    ${tarjeta('No se venden', 'Sin ventas en ' + cfg.diasSinVentas + ' días' + (dueno ? ' · plata parada: <b class="t2">' + pesos(inm.monto) + '</b>' : ''), inm.lista.length, '',
       inm.lista.sort((a, b) => stockDe(b) * b.costo - stockDe(a) * a.costo).map(p => { const i = info(p); return fila(p, dueno ? `<b class="num">${pesos(Math.max(0, i.st) * p.costo)}</b>` : `<span class="num">${cant(i.st)} ${unidadCorta(p)}</span>`, i.ult ? 'última venta ' + cuando(i.ult) : 'nunca se vendió'); }).join(''))}
-    ${tarjeta('Los más vendidos del mes', 'Por importe vendido', top.length, 'ac-azul', top.map(([p, i], k) => fila(p, `<b class="num">${pesos(i.montoMes)}</b>`, '#' + (k + 1) + ' · ' + cant(i.vendMes) + ' ' + unidadCorta(p))).join(''))}
-  </div>`;
+  </div>
+  <div class="card mt"><div class="card-cab"><div class="card-t">Lo más vendido del mes</div></div>
+    <div class="chips-lista">${top.map(([p, i], k) => `<button class="chip sin-punto c-gris" onclick="fichaProducto('${p.id}')">${k + 1}. ${esc(p.nombre)}</button>`).join('') || '<span class="muted">Todavía no hay ventas este mes.</span>'}</div></div>`;
 }
 
 /* ---------- Lista de compra sugerida (por proveedor) ---------- */
@@ -3127,8 +3184,8 @@ RENDER.entregas = function(){
     entregadas: todas.filter(v => v.ent.est === 'entregada' && difDias(v.ent.f, h) <= 30)
   };
   const lista = grupos[EST_ENT.vista].sort((a, b) => a.ent.f.localeCompare(b.ent.f) || a.ent.zona.localeCompare(b.ent.zona));
-  encabezado('Entregas', 'Pendiente → En camino → Entregada. Lo que falta entregar está reservado en el stock.',
-    `<button class="btn btn-linea" onclick="imprimirHojaRuta('${h}')">${ico('imprimir')} Hoja de ruta de hoy</button><button class="btn btn-azul" onclick="formNuevaEntrega()">${ico('mas')} Nueva entrega</button>`);
+  encabezado('Entregas', 'Lo que hay que llevar a los clientes.',
+    menuMas([['mas', 'Agregar una entrega a una venta', 'formNuevaEntrega()']]) + `<button class="btn btn-azul" onclick="imprimirHojaRuta('${h}')">${ico('imprimir')} Hoja de ruta de hoy</button>`);
   const tarjeta = v => { const e = v.ent, atr = e.est !== 'entregada' && e.f < h, c = cliente(v.cli);
     return `<div class="card ent-card ${atr ? 'atrasada' : ''}">
       <div class="fila-fin"><span class="chip sin-punto c-azul">${esc(e.zona)}</span>${chipEntrega(e.est)}</div>
@@ -3138,7 +3195,7 @@ RENDER.entregas = function(){
         ${e.est === 'pendiente' ? `<button class="btn btn-linea btn-sm" onclick="marcarEnCamino('${v.id}')">${ico('camion')} Salió</button>` : ''}
         ${e.est !== 'entregada' ? `<button class="btn btn-azul btn-sm" onclick="marcarEntregada('${v.id}')">${ico('ok')} Entregada</button>` : `<small class="muted">Entregada · ${esc(c ? c.tel : '')}</small>`}
       </div></div>`; };
-  $('#vista').innerHTML = pestanas([['hoy', 'Para hoy', grupos.hoy.length, grupos.hoy.some(v => v.ent.f < h)], ['manana', 'Mañana', grupos.manana.length], ['proximas', 'Todas las pendientes', grupos.proximas.length], ['entregadas', 'Entregadas (30 días)']], EST_ENT.vista, 'tabEntregas')
+  $('#vista').innerHTML = pestanas([['hoy', 'Para hoy', grupos.hoy.length, grupos.hoy.some(v => v.ent.f < h)], ['proximas', 'Todas las pendientes', grupos.proximas.length], ['entregadas', 'Entregadas (30 días)']], EST_ENT.vista, 'tabEntregas')
     + (lista.length ? `<div class="grid g-3">${lista.map(tarjeta).join('')}</div>` : vacio(EST_ENT.vista === 'hoy' ? 'No hay entregas pendientes para hoy.' : 'No hay entregas acá.'));
 };
 function tabEntregas(t){ EST_ENT.vista = t; RENDER.entregas(); }
@@ -3474,16 +3531,15 @@ RENDER.clientes = function(){
     && (e.filtro === 'todos' || (e.filtro === 'cc' && c.limite > 0) || (e.filtro === 'deuda' && saldoCliente(c.id) > 1) || (e.filtro === 'limite' && saldoCliente(c.id) > c.limite && c.limite > 0)))
     .sort((a, b) => saldoCliente(b.id) - saldoCliente(a.id) || a.nombre.localeCompare(b.nombre));
   const totDeuda = conCC.reduce((s, c) => s + Math.max(0, saldoCliente(c.id)), 0);
-  encabezado('Clientes', `${D().clientes.length} clientes · ${pesos(totDeuda)} a cobrar en cuentas corrientes`,
-    btnExportar('exportarClientes') + `<button class="btn btn-azul" onclick="formCliente()">${ico('mas')} Nuevo cliente</button>`);
+  encabezado('Clientes', esDueno() ? `Entre todos te deben ${pesos(totDeuda)}.` : 'Datos de los clientes y sus compras.',
+    menuMas([['descargar', 'Exportar a Excel', 'exportarClientes()']]) + `<button class="btn btn-azul" onclick="formCliente()">${ico('mas')} Nuevo cliente</button>`);
   $('#vista').innerHTML = `<div class="herr">${buscador('c-q', e.q, 'Nombre, RUT, cédula o teléfono', 'filtroCliQ')}
-      ${pildoras([['todos', 'Todos', D().clientes.length], ['cc', 'Con cuenta corriente', conCC.length], ['deuda', 'Con saldo', D().clientes.filter(c => saldoCliente(c.id) > 1).length], ['limite', 'Pasados del límite', sobre.length, 'p-rojo']], e.filtro, 'filtroCli')}</div>
-    <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla"><thead><tr><th>Cliente</th><th>RUT / CI</th><th>Teléfono</th><th>Zona</th><th>Última compra</th><th class="derecha">Saldo</th><th class="derecha">Límite</th></tr></thead>
+      ${pildoras([['todos', 'Todos'], ['deuda', 'Deben', D().clientes.filter(c => saldoCliente(c.id) > 1).length], ['limite', 'Pasados del límite', sobre.length, 'p-rojo']], e.filtro, 'filtroCli')}</div>
+    <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla"><thead><tr><th>Cliente</th><th>Teléfono</th><th class="derecha">Debe</th></tr></thead>
       <tbody>${lista.map(c => { const s = saldoCliente(c.id), u = ultimaCompraCli(c.id), pasa = c.limite > 0 && s > c.limite;
-        return `<tr class="clic" onclick="fichaCliente('${c.id}')"><td><div class="persona"><span class="avatar">${iniciales(c.nombre)}</span><span class="p-nombre">${esc(c.nombre)}</span></div></td>
-          <td class="t2 num">${c.tdoc} ${esc(c.doc)}</td><td class="t2">${esc(c.tel)}</td><td class="t2">${esc(c.zona)}</td><td class="t2">${u ? fMedia(u) : '—'}</td>
-          <td class="derecha num fuerte ${pasa ? 'neg' : s > 1 ? 'am' : 'muted'}">${s > 1 ? pesos(s) : '—'}</td>
-          <td class="derecha num t2">${c.limite ? pesos(c.limite) : '<span class="muted">Sin cuenta</span>'}${pasa ? ' <span class="chip c-rojo sin-punto">Pasado</span>' : ''}</td></tr>`; }).join('')}</tbody></table></div>
+        return `<tr class="clic" onclick="fichaCliente('${c.id}')"><td><div class="persona"><span class="avatar">${iniciales(c.nombre)}</span><span><span class="p-nombre">${esc(c.nombre)}</span><span class="p-cod">${u ? 'Última compra ' + fMedia(u) : 'Sin compras'}</span></span></div></td>
+          <td class="t2">${esc(c.tel)}</td>
+          <td class="derecha num fuerte ${pasa ? 'neg' : s > 1 ? 'am' : 'muted'}">${s > 1 ? pesos(s) : '—'}${pasa ? '<br><span class="chip c-rojo sin-punto">Pasado del límite</span>' : ''}</td></tr>`; }).join('')}</tbody></table></div>
       ${lista.length ? '' : vacio('No hay clientes con estos filtros.')}</div>`;
 };
 let _tCQ;
@@ -3662,8 +3718,7 @@ function pintarComisiones(){
   $('#pers-cuerpo').innerHTML = `<div class="caja-info aviso-am">${ico('info')}<span><b>Importante:</b> las comisiones son salario y llevan aportes al BPS. El sistema las calcula y registra, pero la liquidación formal sigue su circuito habitual (contador / BPS).</span></div>
     <div class="card mt"><div class="card-cab"><div class="card-t">Comisiones a liquidar<small>Ventas del funcionario efectivamente cobradas, menos devoluciones, que todavía no se liquidaron</small></div>
       <div class="fila"><input class="sel" type="date" value="${desde}" onchange="EST_PERS.desde=this.value;pintarComisiones()" aria-label="Desde"> a <input class="sel" type="date" value="${hasta}" onchange="EST_PERS.hasta=this.value;pintarComisiones()" aria-label="Hasta"></div></div>
-      <div class="grid g-4">${kpi('Ventas cobradas', r.cobradas.length, 'del funcionario en el período', { ico:'vender' })}${kpi('Base de comisión', pesos(r.base), 'neto de descuentos y devoluciones', { ico:'dinero' })}
-        ${kpi('Ajustes', pesos(r.aj), r.ajustes.length ? r.ajustes.length + ' por devoluciones o anulaciones' : 'Sin ajustes', { ico:'volver', cls: r.aj ? 'k-amarillo' : '' })}${kpi('Comisión', pesos(r.total), 'a liquidar', { ico:'personal', cls:'k-naranja' })}</div>
+      <div class="numeros"><div class="numero"><small>Comisión a liquidar</small><b class="num">${pesos(r.total)}</b><span>sobre ${r.cobradas.length} ventas cobradas (${pesos(r.base)})${r.aj ? ' · ajustes ' + pesos(r.aj) : ''}</span></div></div>
       ${r.sinCobrar.length ? `<p class="muted chico mt-s">${r.sinCobrar.length} venta${r.sinCobrar.length > 1 ? 's' : ''} a cuenta corriente todavía sin cobrar (${pesos(r.sinCobrar.reduce((s, v) => s + netoVenta(v), 0))}): entran cuando el cliente pague.</p>` : ''}
       <details class="mt-s"><summary class="link">Ver el detalle de las ${r.cobradas.length} ventas</summary>
         <div class="tabla-caja mt-s"><div class="tabla-scroll" style="max-height:300px"><table class="tabla"><thead><tr><th>Nº</th><th>Fecha</th><th>Cliente</th><th class="derecha">Base</th><th class="derecha">Comisión</th></tr></thead>
@@ -3710,7 +3765,8 @@ function verFinanzas(t){ EST_FIN.tab = t || 'caja'; if (seccionActual !== 'finan
 RENDER.finanzas = function(){
   const t = EST_FIN.tab;
   encabezado('Finanzas', 'La caja del día, los gastos y cuánto deja el negocio.',
-    `<button class="btn btn-linea" onclick="formDinero('gasto')">${ico('dinero')} Registrar gasto</button><button class="btn btn-linea" onclick="formDinero('retiro')">${ico('usuario')} Registrar retiro</button>`);
+    menuMas([['usuario', 'Retiro de un socio', "formDinero('retiro')"], ['mas', 'Aporte de capital', "formDinero('aporte')"], ['compras', 'Pago a proveedor', 'formPagoProveedor()'], ['descargar', 'Exportar movimientos a Excel', 'exportarDinero()']])
+    + `<button class="btn btn-azul" onclick="formDinero('gasto')">${ico('dinero')} Registrar gasto</button>`);
   $('#vista').innerHTML = pestanas([['caja', 'Caja del día'], ['movimientos', 'Movimientos'], ['resultado', 'Resultado del mes'], ['cuentas', 'A cobrar y a pagar']], t, 'tabFinanzas') + '<div id="fin-cuerpo"></div>';
   ({ caja:pintarCaja, movimientos:pintarDinero, resultado:pintarResultado, cuentas:pintarCuentas })[t]();
 };
@@ -3783,8 +3839,7 @@ function pintarDinero(){
   $('#fin-cuerpo').innerHTML = `<div class="herr">
       <select class="sel" onchange="EST_FIN.mes=this.value;EST_FIN.ver=60;pintarDinero()" aria-label="Mes">${meses.map(m => `<option value="${m}" ${m === mes ? 'selected' : ''}>${fMes(m + '-01')}</option>`).join('')}</select>
       <select class="sel" onchange="EST_FIN.tipo=this.value;pintarDinero()" aria-label="Tipo"><option value="">Todos los movimientos</option>${Object.keys(TIPOS_DINERO).map(k => `<option value="${k}" ${k === e.tipo ? 'selected' : ''}>${TIPOS_DINERO[k]}</option>`).join('')}<option value="cobro" ${e.tipo === 'cobro' ? 'selected' : ''}>Cobros de clientes</option></select>
-      <span style="margin-left:auto" class="fila"><button class="btn btn-linea btn-sm" onclick="formDinero('aporte')">${ico('mas')} Aporte de capital</button><button class="btn btn-linea btn-sm" onclick="formPagoProveedor()">${ico('compras')} Pago a proveedor</button>
-      <button class="btn btn-linea btn-sm" onclick="exportarDinero()">${ico('descargar')} Exportar</button></span></div>
+      </div>
     <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla"><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Medio</th><th class="derecha">Monto</th><th>Usuario</th></tr></thead>
       <tbody>${filas.map(m => `<tr><td>${fMedia(m.f)}</td><td>${m.tipo}</td><td class="t2">${esc(m.det)}</td><td>${m.medio}</td><td class="derecha num fuerte ${m.entra ? 'pos' : ''}">${m.entra ? '+ ' : '− '}${pesos(m.monto)}</td><td class="t2">${esc(m.u)}</td></tr>`).join('')}</tbody></table></div>
       ${lista.length ? '' : vacio('Sin movimientos en este mes.')}${mas}</div>`;
@@ -3839,7 +3894,8 @@ function pintarResultado(){
       <div class="res-fila sub"><span>= Ganancia bruta <small>${pct(r.vendido ? (r.vendido - r.cmv) / r.vendido * 100 : 0)} sobre ventas</small></span><b class="num">${pesos(r.vendido - r.cmv)}</b></div>
       <div class="res-fila menos"><span>− Gastos del mes</span><b class="num">${pesos(r.gastos)}</b></div>
       <div class="res-fila total ${r.ganancia < 0 ? 'neg' : ''}"><span>= Ganancia <small>margen ${pct(r.margen)}</small></span><b class="num">${pesos(r.ganancia)}</b></div>
-      <p class="muted chico mt-s">Los retiros de los socios (${pesos(retiros)} este mes) no se restan: son reparto de la ganancia, no un gasto.</p></div>
+      <p class="muted chico mt-s">Los retiros de los socios (${pesos(retiros)} este mes) no se restan: son reparto de la ganancia, no un gasto.</p>
+      <div class="res-fila mt"><span>Valor del stock hoy <small>a costo · a precio de venta ${pesos(valorStock().venta)}</small></span><b class="num">${pesos(valorStock().costo)}</b></div></div>
     <div class="grid g-2 mt">
       <div class="card"><div class="card-cab"><div class="card-t">Ventas y gastos<small>Últimos 6 meses</small></div>
         <div class="leyenda"><span><i class="lv"></i>Ventas</span><span><i class="lg"></i>Gastos</span></div></div>${graficoSeisMeses(seis)}</div>
