@@ -813,6 +813,13 @@ body{font-size:15px}
   .numero{min-width:100%}
   .mas-menu{left:0;right:auto}
 }
+/* Asistencia: más opciones y días futuros (15/10/2026) */
+.cal-d.as-M{background:var(--amarillo-bg);color:var(--amarillo);border-color:transparent}
+.cal-d.as-J{background:var(--naranja-suave);color:#8A4A14;border-color:transparent}
+.cal-d.futuro:not([class*="as-"]){background:var(--hueso);border-style:dashed}
+.opciones.col{flex-direction:column}
+.opciones.col .opcion{flex-direction:row;justify-content:flex-start;gap:10px;min-width:0}
+.opciones.col .opcion small{margin-left:auto}
 
 </style>
 </head>
@@ -1052,9 +1059,11 @@ const CAT_GASTO = ['Alquiler', 'UTE', 'OSE', 'Antel', 'Combustible', 'Fletes', '
 const TIPOS_DINERO = { gasto:'Gasto', retiro:'Retiro de socio', aporte:'Aporte de capital', pagoProv:'Pago a proveedor' };
 const SOCIOS = ['Jorge', 'Marta'];
 const ASISTENCIA = {   // calendario del funcionario
-  T: { t:'Trabajó',  c:'c-verde' },
-  F: { t:'Falta',    c:'c-rojo' },
-  L: { t:'Licencia', c:'c-azul' }
+  T: { t:'Trabajó',       c:'c-verde',    futuro:false },
+  M: { t:'Medio día',     c:'c-amarillo', futuro:false },
+  F: { t:'Falta',         c:'c-rojo',     futuro:false },
+  J: { t:'Falta avisada', c:'c-naranja',  futuro:true  },   // avisada o justificada: se puede cargar antes
+  L: { t:'Licencia',      c:'c-azul',     futuro:true  }    // se puede planificar en días futuros
 };
 
 // Configuración que se puede cambiar desde la página (⚙ Configuración). Valores iniciales:
@@ -3555,11 +3564,7 @@ function fichaCliente(id){
   const x = ccIndice().porCli[id] || { saldo:0 }, s = x.saldo, pasa = c.limite > 0 && s > c.limite;
   const ventas = D().ventas.filter(v => v.cli === id).sort((a, b) => (b.f + b.h).localeCompare(a.f + a.h));
   const total12 = ventas.filter(v => ventaActiva(v) && difDias(v.f, hoy()) <= 365).reduce((a, v) => a + netoVenta(v), 0);
-  // Cuenta corriente: ventas a cuenta (debe) y pagos (haber), con saldo acumulado
-  const movs = [];
-  ventas.filter(v => v.pago === 'Cuenta corriente' && ventaActiva(v)).forEach(v => movs.push({ f:v.f, h:v.h, t:'Venta Nº ' + v.num, debe:netoVenta(v), haber:0, id:v.id }));
-  D().cobros.filter(p => p.cli === id).forEach(p => movs.push({ f:p.f, h:'23:59', t:'Pago · ' + p.medio + (p.nota ? ' · ' + p.nota : ''), debe:0, haber:p.monto }));
-  movs.sort((a, b) => (a.f + a.h).localeCompare(b.f + b.h)); let acu = 0; movs.forEach(m => { acu += m.debe - m.haber; m.saldo = acu; });
+  const movs = movsCuenta(id);   // cuenta corriente (está en 16-estado-cuenta.js)
   abrirModal({ titulo:esc(c.nombre), sub:`${c.tdoc} ${esc(c.doc)} · cliente desde ${fMes(c.alta)}`, ancho:'lg', foco:false,
     cuerpo:`<div class="datos"><div><small>Teléfono</small><b>${esc(c.tel)}</b></div><div><small>Dirección</small><b>${esc(c.dir)} · ${esc(c.zona)}</b></div>
         <div><small>Compró en el último año</small><b>${pesos(total12)}</b></div><div><small>Última compra</small><b>${ventas[0] ? fMedia(ventas[0].f) : '—'}</b></div></div>
@@ -3575,6 +3580,7 @@ function fichaCliente(id){
         <tbody>${ventas.slice(0, 60).map(v => `<tr class="clic ${ventaActiva(v) ? '' : 'anulada'}" onclick="fichaVenta('${v.id}')"><td class="num">${v.num}</td><td>${fMedia(v.f)}</td><td class="t2">${esc(v.it.map(i => i.n).join(', ')).slice(0, 70)}</td><td>${v.pago}</td><td class="derecha num">${pesos(ventaActiva(v) ? netoVenta(v) : v.tot)}</td></tr>`).join('')}</tbody></table></div>${ventas.length ? '' : vacio('Todavía no compró.')}</div>`,
     pie:`<button class="btn btn-linea izq" onclick="formCliente('${id}')">${ico('editar')} Editar</button>
       <button class="btn btn-wa" onclick="abrirWhatsApp('${esc(c.tel)}','Hola ${esc(primerNombre(c.nombre))}, te escribimos de ${esc(NEGOCIO.nombre)}.')">${ico('wa')} WhatsApp</button>
+      <button class="btn btn-linea" onclick="estadoCuenta('${id}')">${ico('descargar')} Estado de cuenta</button>
       ${c.limite && s > 1 ? `<button class="btn btn-azul" onclick="formCobro('${id}')">${ico('dinero')} Registrar cobro</button>` : ''}` });
 }
 function formCliente(id, alGuardar){
@@ -3613,6 +3619,96 @@ function guardarCobro(id){
   D().cobros.unshift({ id:Store.id('co'), f:hoy(), cli:id, monto:o.monto, medio:o.medio, u:usuarioTxt(), nota:o.nota });
   registrar(`Registró un cobro de ${pesos(o.monto)} de ${nombreCli(id)} (${o.medio})`);
   guardar(); avisar('Cobro registrado', 'dinero'); fichaCliente(id); refrescar();
+}
+
+
+/* ===== js/16-estado-cuenta.js ===== */
+/* =====================================================================
+   ESTADO DE CUENTA DEL CLIENTE (PDF y Excel)
+   Cuenta corriente: ventas a cuenta (debe) y pagos (haber), con el saldo
+   acumulado. Si el cliente no compra a cuenta, lista sus compras (pagadas).
+   ===================================================================== */
+function movsCuenta(id){
+  const movs = [];
+  D().ventas.filter(v => v.cli === id && v.pago === 'Cuenta corriente' && ventaActiva(v)).forEach(v => movs.push({ f:v.f, h:v.h, t:'Venta Nº ' + v.num, debe:netoVenta(v), haber:0, id:v.id }));
+  D().cobros.filter(p => p.cli === id).forEach(p => movs.push({ f:p.f, h:'23:59', t:'Pago · ' + p.medio + (p.nota ? ' · ' + p.nota : ''), debe:0, haber:p.monto }));
+  movs.sort((a, b) => (a.f + a.h).localeCompare(b.f + b.h));
+  let acu = 0; movs.forEach(m => { acu += m.debe - m.haber; m.saldo = acu; });
+  return movs;
+}
+function datosEstadoCuenta(id){
+  const c = cliente(id), cc = movsCuenta(id);
+  if (cc.length) return { c, tipo:'cc', filas:cc, saldo:cc[cc.length - 1].saldo };
+  const filas = D().ventas.filter(v => v.cli === id && ventaActiva(v)).sort((a, b) => (a.f + a.h).localeCompare(b.f + b.h))
+    .map(v => ({ f:v.f, t:'Venta Nº ' + v.num + ' · ' + v.pago, debe:netoVenta(v), haber:netoVenta(v), saldo:0 }));
+  return { c, tipo:'contado', filas, saldo:0 };
+}
+function estadoCuenta(id){
+  const e = datosEstadoCuenta(id);
+  abrirModal({ titulo:'Estado de cuenta', sub:esc(e.c.nombre) + ' · al ' + fCorta(hoy()), ancho:'modal-sm', foco:false,
+    cuerpo:`<p class="t2">${e.tipo === 'cc' ? 'Saldo de la cuenta corriente: <b>' + pesos(e.saldo) + '</b> (' + e.filas.length + ' movimientos).' : 'No compra a cuenta: el estado lista sus compras, todas pagadas.'}</p>
+      <div class="opciones col mt">
+        <button class="opcion" onclick="estadoCuentaPDF('${id}')">${ico('factura')} Descargar en PDF <small>para imprimir o mandárselo</small></button>
+        <button class="opcion" onclick="estadoCuentaExcel('${id}')">${ico('descargar')} Descargar en Excel <small>para trabajar los números</small></button></div>`,
+    pie:`<button class="btn btn-linea" onclick="fichaCliente('${id}')">Volver</button>` });
+}
+function nombreArchivoEC(c){ return NEGOCIO.nombre + ' - Estado de cuenta - ' + c.nombre.replace(/[\\/:*?"<>|]/g, '') + ' - ' + hoy(); }
+function descargarArchivo(blob, nombre){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function estadoCuentaExcel(id){
+  const e = datosEstadoCuenta(id), c = e.c;
+  const cel = v => { v = v == null ? '' : String(v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const lineas = [[NEGOCIO.nombre + ' · ' + NEGOCIO.rubro], ['Estado de cuenta al ' + fCorta(hoy())], [],
+    ['Cliente', c.nombre], [c.tdoc, c.doc], ['Dirección', c.dir], ['Teléfono', c.tel]]
+    .concat(c.limite ? [['Límite de crédito', c.limite]] : [])
+    .concat([[], ['Fecha', 'Detalle', 'Debe', 'Haber', 'Saldo']])
+    .concat(e.filas.map(m => [fCorta(m.f), m.t, m.debe ? numCSV(m.debe) : '', m.haber ? numCSV(m.haber) : '', numCSV(m.saldo)]))
+    .concat([[], ['', 'SALDO A LA FECHA', '', '', numCSV(e.saldo)]]);
+  const txt = '﻿' + lineas.map(f => f.map(cel).join(';')).join('\r\n');
+  descargarArchivo(new Blob([txt], { type:'text/csv;charset=utf-8' }), nombreArchivoEC(c) + '.csv');
+  registrar('Descargó el estado de cuenta de ' + c.nombre + ' (Excel)'); guardar();
+  avisar('Se descargó el estado de cuenta (se abre con Excel)', 'descargar');
+}
+
+// El PDF se arma en el navegador con jsPDF (se carga solo la primera vez que se usa).
+let _jspdf = null;
+function cargarJsPDF(){
+  if (_jspdf) return _jspdf;
+  const s = src => new Promise((ok, mal) => { const e = document.createElement('script'); e.src = src; e.onload = ok; e.onerror = mal; document.head.appendChild(e); });
+  _jspdf = s('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+    .then(() => s('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'))
+    .catch(e => { _jspdf = null; throw e; });
+  return _jspdf;
+}
+async function estadoCuentaPDF(id){
+  const e = datosEstadoCuenta(id), c = e.c;
+  try { await cargarJsPDF(); } catch (err){ error('No se pudo armar el PDF (¿hay internet?). Probá de nuevo.'); return; }
+  const doc = new window.jspdf.jsPDF({ unit:'mm', format:'a4' });
+  const azul = [43, 72, 104], gris = [107, 111, 114], texto = [30, 42, 54];
+  try { doc.addImage(LOGO_YUNQUE, 'PNG', 14, 9, 27, 31, undefined, 'FAST'); } catch (err) {}
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(...azul); doc.text(NEGOCIO.nombre.toUpperCase(), 46, 19);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...gris);
+  doc.text([NEGOCIO.rubro, 'RUT ' + NEGOCIO.rut + ' · ' + NEGOCIO.direccion + ' · Tel. ' + NEGOCIO.tel], 46, 25);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...azul); doc.text('ESTADO DE CUENTA', 196, 19, { align:'right' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...gris); doc.text('al ' + fCorta(hoy()), 196, 25, { align:'right' });
+  doc.setDrawColor(...azul); doc.setLineWidth(.8); doc.line(14, 44, 196, 44);
+  doc.setTextColor(...texto); doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.text(c.nombre, 14, 52);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text([c.tdoc + ' ' + c.doc + ' · ' + c.dir + ' · Tel. ' + c.tel,
+    c.limite ? 'Límite de crédito: ' + pesos(c.limite) : (e.tipo === 'cc' ? '' : 'Compras al contado')], 14, 58);
+  doc.autoTable({ startY:68, head:[['Fecha', 'Detalle'].concat(['Debe', 'Haber', 'Saldo'].map(t => ({ content:t, styles:{ halign:'right' } })))],
+    body:e.filas.map(m => [fCorta(m.f), m.t, m.debe ? pesos(m.debe) : '', m.haber ? pesos(m.haber) : '', pesos(m.saldo)]),
+    foot:[['', 'Saldo a la fecha', '', '', { content:pesos(e.saldo), styles:{ halign:'right' } }]],
+    styles:{ font:'helvetica', fontSize:9, cellPadding:2.2 }, headStyles:{ fillColor:azul },
+    footStyles:{ fillColor:[241, 244, 247], textColor:texto, fontStyle:'bold' }, alternateRowStyles:{ fillColor:[250, 249, 246] },
+    columnStyles:{ 0:{ cellWidth:24 }, 2:{ halign:'right' }, 3:{ halign:'right' }, 4:{ halign:'right', fontStyle:'bold' } } });
+  doc.setFontSize(8.5); doc.setTextColor(...gris);
+  doc.text('Importes en pesos uruguayos con IVA incluido. ' + NEGOCIO.lema + '.', 14, Math.min(doc.lastAutoTable.finalY + 10, 285));
+  doc.save(nombreArchivoEC(c) + '.pdf');
+  registrar('Descargó el estado de cuenta de ' + c.nombre + ' (PDF)'); guardar();
+  avisar('Se descargó el estado de cuenta en PDF', 'descargar');
 }
 
 
@@ -3660,28 +3756,42 @@ function formFunc(){
 }
 function guardarFunc(){ const o = leerForm($('#modal-cuerpo')); if (!o.nombre){ error('Falta el nombre'); return; } Object.assign(D().func, o); D().func.sueldo = Number(o.sueldo) || 0; USUARIOS.func.quien = primerNombre(o.nombre); registrar('Editó los datos del funcionario'); guardar(); cerrarModal(); RENDER.personal(); }
 
-/* ---------- Asistencia: tocar un día cambia Trabajó → Falta → Licencia → (vacío) ---------- */
+/* ---------- Asistencia: se toca un día y se elige qué pasó.
+   Días pasados: trabajó, medio día, falta, falta avisada o licencia.
+   Días futuros (para planificar): licencia o falta avisada. ---------- */
+const MESES_ADELANTE = 6;
 function pintarAsistencia(){
   const mes = EST_PERS.mes || inicioMes(hoy()), ini = aFecha(mes), dias = aFecha(finMes(mes)).getDate(), h = hoy();
-  const offset = (ini.getDay() + 6) % 7, a = D().asist, tot = { T:0, F:0, L:0 };
+  const offset = (ini.getDay() + 6) % 7, a = D().asist, tot = {}; Object.keys(ASISTENCIA).forEach(k => tot[k] = 0);
+  const tope = sumarMeses(inicioMes(h), MESES_ADELANTE);
   let celdas = '<div class="cal-cab">' + ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => `<span>${d}</span>`).join('') + '</div><div class="cal">' + '<span></span>'.repeat(offset);
   for (let d = 1; d <= dias; d++){
     const f = mes.slice(0, 8) + p2(d), v = a[f], fut = f > h;
-    if (v) tot[v]++;
-    celdas += `<button class="cal-d ${v ? 'as-' + v : ''} ${f === h ? 'hoy' : ''}" ${fut ? 'disabled' : ''} onclick="cambiarAsist('${f}')" aria-label="${fLarga(f)}: ${v ? ASISTENCIA[v].t : 'sin marcar'}"><b>${d}</b><small>${v ? ASISTENCIA[v].t : ''}</small></button>`;
+    if (v && tot[v] != null) tot[v]++;
+    celdas += `<button class="cal-d ${v ? 'as-' + v : ''} ${f === h ? 'hoy' : ''} ${fut ? 'futuro' : ''}" onclick="elegirAsist('${f}')" aria-label="${fLarga(f)}: ${v ? ASISTENCIA[v].t : 'sin marcar'}"><b>${d}</b><small>${v ? ASISTENCIA[v].t : ''}</small></button>`;
   }
   celdas += '</div>';
+  const trabajados = tot.T + tot.M / 2;
   $('#pers-cuerpo').innerHTML = `<div class="card"><div class="card-cab"><div class="fila"><button class="icon-btn" onclick="moverMesAsist(-1)" aria-label="Mes anterior">${ico('izq')}</button>
-      <div class="card-t" style="min-width:170px;text-align:center">${fMes(mes)}</div><button class="icon-btn" onclick="moverMesAsist(1)" aria-label="Mes siguiente" ${mes >= inicioMes(h) ? 'disabled' : ''}>${ico('der')}</button></div>
-      <div class="fila">${Object.keys(ASISTENCIA).map(k => `<span class="chip ${ASISTENCIA[k].c}">${ASISTENCIA[k].t}: ${tot[k]}</span>`).join('')}</div></div>
-    ${celdas}<p class="muted chico mt-s">Tocá un día para marcarlo: Trabajó → Falta → Licencia → sin marcar. Total del período: <b>${tot.T}</b> días trabajados.</p></div>`;
+      <div class="card-t" style="min-width:170px;text-align:center">${fMes(mes)}</div><button class="icon-btn" onclick="moverMesAsist(1)" aria-label="Mes siguiente" ${mes >= tope ? 'disabled' : ''}>${ico('der')}</button></div>
+      <div class="fila">${Object.keys(ASISTENCIA).filter(k => tot[k]).map(k => `<span class="chip ${ASISTENCIA[k].c}">${ASISTENCIA[k].t}: ${tot[k]}</span>`).join('')}</div></div>
+    ${celdas}<p class="muted chico mt-s">Tocá un día para marcarlo. En los días que vienen podés cargar <b>licencias</b> y <b>faltas avisadas</b> para planificar.
+      Días trabajados en el mes: <b>${String(trabajados).replace('.', ',')}</b>${tot.M ? ' (los medios días cuentan como ½)' : ''}.</p></div>`;
 }
 function moverMesAsist(n){ EST_PERS.mes = sumarMeses(EST_PERS.mes || inicioMes(hoy()), n); pintarAsistencia(); }
-function cambiarAsist(f){
-  const orden = ['T', 'F', 'L', undefined], a = D().asist, sig = orden[(orden.indexOf(a[f]) + 1) % orden.length];
-  if (sig) a[f] = sig; else delete a[f];
-  registrar(`Marcó asistencia del ${fCorta(f)}: ${sig ? ASISTENCIA[sig].t : 'sin marcar'}`);
-  guardar(); pintarAsistencia();
+function elegirAsist(f){
+  const fut = f > hoy(), actual = D().asist[f];
+  const opciones = Object.keys(ASISTENCIA).filter(k => !fut || ASISTENCIA[k].futuro);
+  abrirModal({ titulo:fLarga(f), sub: fut ? 'Día que viene: se puede planificar una licencia o una falta avisada' : 'Asistencia de ' + esc(D().func.nombre), ancho:'modal-sm', foco:false,
+    cuerpo:`<div class="opciones col">${opciones.map(k => `<button class="opcion ${actual === k ? 'on' : ''}" onclick="marcarAsist('${f}','${k}')"><span class="chip ${ASISTENCIA[k].c}">${ASISTENCIA[k].t}</span></button>`).join('')}
+      ${actual ? `<button class="opcion" onclick="marcarAsist('${f}','')">Dejar sin marcar</button>` : ''}</div>`,
+    pie:'<button class="btn btn-linea" onclick="cerrarModal()">Cancelar</button>' });
+}
+function marcarAsist(f, k){
+  const a = D().asist;
+  if (k) a[f] = k; else delete a[f];
+  registrar(`Marcó asistencia del ${fCorta(f)}: ${k ? ASISTENCIA[k].t : 'sin marcar'}`);
+  guardar(); cerrarModal(); pintarAsistencia();
 }
 
 /* ---------- Sueldo y adelantos (los adelantos se descuentan al liquidar) ---------- */
@@ -3798,10 +3908,10 @@ function pintarCaja(){
         <div class="caja-l total"><span>Total vendido el día</span><b class="num">${pesos(D().ventas.filter(v => v.f === dia).reduce((s, v) => s + v.tot, 0))}</b></div></div>
     </div>`}
     <h3 class="sub-t mt">Últimos cierres</h3>
-    <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla"><thead><tr><th>Día</th><th class="derecha">Apertura</th><th class="derecha">Debería haber</th><th class="derecha">Se contó</th><th class="derecha">Diferencia</th><th>Cerró</th></tr></thead>
+    <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla"><thead><tr><th>Día</th><th class="derecha">Apertura</th><th class="derecha">Debería haber</th><th class="derecha">Se contó</th><th class="derecha">Diferencia</th></tr></thead>
       <tbody>${dias.map(f => { const x = D().caja[f], ci = x.cierre, d = ci ? ci.contado - ci.esperado : null;
         return `<tr class="clic" onclick="EST_FIN.dia='${f}';pintarCaja()"><td>${fLarga(f)}</td><td class="derecha num">${pesos(x.ap)}</td><td class="derecha num">${ci ? pesos(ci.esperado) : '—'}</td><td class="derecha num">${ci ? pesos(ci.contado) : '—'}</td>
-          <td class="derecha num fuerte ${d < 0 ? 'neg' : d > 0 ? 'pos' : ''}">${ci ? difTxt(d) : '<span class="chip c-azul">Abierta</span>'}</td><td class="t2">${ci ? esc(ci.u) + ' · ' + ci.h : ''}</td></tr>`; }).join('')}</tbody></table></div></div>`;
+          <td class="derecha num fuerte ${d < 0 ? 'neg' : d > 0 ? 'pos' : ''}">${ci ? difTxt(d) : '<span class="chip c-azul">Abierta</span>'}</td></tr>`; }).join('')}</tbody></table></div></div>`;
 }
 function difTxt(d){ return Math.abs(d) < 1 ? 'Sin diferencia' : (d > 0 ? 'Sobran ' : 'Faltan ') + pesos(Math.abs(d)); }
 function abrirCaja(){
@@ -3840,13 +3950,13 @@ function pintarDinero(){
       <select class="sel" onchange="EST_FIN.mes=this.value;EST_FIN.ver=60;pintarDinero()" aria-label="Mes">${meses.map(m => `<option value="${m}" ${m === mes ? 'selected' : ''}>${fMes(m + '-01')}</option>`).join('')}</select>
       <select class="sel" onchange="EST_FIN.tipo=this.value;pintarDinero()" aria-label="Tipo"><option value="">Todos los movimientos</option>${Object.keys(TIPOS_DINERO).map(k => `<option value="${k}" ${k === e.tipo ? 'selected' : ''}>${TIPOS_DINERO[k]}</option>`).join('')}<option value="cobro" ${e.tipo === 'cobro' ? 'selected' : ''}>Cobros de clientes</option></select>
       </div>
-    <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla"><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Medio</th><th class="derecha">Monto</th><th>Usuario</th></tr></thead>
-      <tbody>${filas.map(m => `<tr><td>${fMedia(m.f)}</td><td>${m.tipo}</td><td class="t2">${esc(m.det)}</td><td>${m.medio}</td><td class="derecha num fuerte ${m.entra ? 'pos' : ''}">${m.entra ? '+ ' : '− '}${pesos(m.monto)}</td><td class="t2">${esc(m.u)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="tabla-caja"><div class="tabla-scroll"><table class="tabla"><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Medio</th><th class="derecha">Monto</th></tr></thead>
+      <tbody>${filas.map(m => `<tr><td>${fMedia(m.f)}</td><td>${m.tipo}</td><td class="t2">${esc(m.det)}</td><td>${m.medio}</td><td class="derecha num fuerte ${m.entra ? 'pos' : ''}">${m.entra ? '+ ' : '− '}${pesos(m.monto)}</td></tr>`).join('')}</tbody></table></div>
       ${lista.length ? '' : vacio('Sin movimientos en este mes.')}${mas}</div>`;
 }
 function exportarDinero(){
-  exportarCSV('Movimientos de dinero', ['Fecha', 'Tipo', 'Categoría', 'Socio', 'Proveedor', 'Detalle', 'Medio', 'Monto', 'Usuario'],
-    D().dinero.map(m => [fCorta(m.f), TIPOS_DINERO[m.tipo], m.cat, m.socio || '', m.prov ? nombreProv(m.prov) : '', m.nota, m.medio, numCSV(m.monto), m.u]));
+  exportarCSV('Movimientos de dinero', ['Fecha', 'Tipo', 'Categoría', 'Socio', 'Proveedor', 'Detalle', 'Medio', 'Monto'],
+    D().dinero.map(m => [fCorta(m.f), TIPOS_DINERO[m.tipo], m.cat, m.socio || '', m.prov ? nombreProv(m.prov) : '', m.nota, m.medio, numCSV(m.monto)]));
 }
 function formDinero(tipo){
   const titulos = { gasto:'Registrar gasto', retiro:'Retiro de socio', aporte:'Aporte de capital' };
@@ -4008,7 +4118,7 @@ function imprimir(titulo, sub, cuerpo){
       <span>RUT ${esc(NEGOCIO.rut)} · ${esc(NEGOCIO.direccion)} · Tel. ${esc(NEGOCIO.tel)}</span></div>
       <div class="imp-doc"><b>${titulo}</b><span>${sub}</span></div></div>
     ${cuerpo}
-    <div class="imp-pie">${esc(NEGOCIO.lema)} · impreso el ${fCorta(hoy())} a las ${hora()} por ${esc(usuarioTxt())}</div></div>`;
+    <div class="imp-pie">${esc(NEGOCIO.lema)} · impreso el ${fCorta(hoy())} a las ${hora()}</div></div>`;
   setTimeout(() => window.print(), 80);
 }
 function imprimirPresupuesto(id){
@@ -4035,7 +4145,7 @@ function imprimirHojaRuta(dia){
 function imprimirCierre(dia){
   const c = cajaDelDia(dia), ci = c.cierre;
   const filas = (arr, s) => arr.map(x => `<tr><td>${x.t} (${x.n})</td><td class="d">${s} ${pesos(x.monto)}</td></tr>`).join('');
-  imprimir('CIERRE DE CAJA', fLarga(dia) + ' · cerró ' + esc(ci.u) + ' a las ' + ci.h,
+  imprimir('CIERRE DE CAJA', fLarga(dia) + ' · cerrada a las ' + ci.h,
     `<table class="imp-t imp-caja"><tbody><tr><td>Apertura</td><td class="d">${pesos(c.ap)}</td></tr>${filas(c.ing, '+')}${filas(c.egr, '−')}
       <tr class="imp-tot"><td>Debería haber</td><td class="d">${pesos(c.esperado)}</td></tr><tr><td>Se contó</td><td class="d">${pesos(ci.contado)}</td></tr>
       <tr class="imp-tot"><td>Diferencia</td><td class="d">${difTxt(ci.contado - ci.esperado)}</td></tr></tbody></table>
