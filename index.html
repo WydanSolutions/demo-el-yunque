@@ -841,6 +841,16 @@ body{font-size:15px}
 .cal-chico .cal-d{min-height:46px;padding:4px 6px;cursor:default}
 .cal-chico .cal-d small{font-size:10px}
 
+/* Entregadas: agrupadas por mes y por año (16/10/2026) */
+.ent-grupo{background:#fff;border:1px solid var(--borde-2);border-radius:12px;margin-top:8px;box-shadow:var(--sombra)}
+.ent-grupo>summary{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;font-weight:600;font-size:15.5px;cursor:pointer}
+.ent-grupo>summary::after{content:'▾';color:var(--texto-3);margin-left:10px;transition:transform .2s}
+.ent-grupo[open]>summary::after{transform:rotate(180deg)}
+.ent-grupo>summary span:first-child{flex:1}
+.ent-grupo .lista{padding:0 12px 8px}
+.ent-grupo.anio>summary{font-family:var(--f-titulo);font-size:20px;color:var(--azul);text-transform:uppercase}
+.ent-grupo.anio>.ent-grupo{margin:0 12px 10px;box-shadow:none}
+
 </style>
 </head>
 <body>
@@ -1287,7 +1297,7 @@ const Store = {
   cargar(){
     let d = null;
     try { d = JSON.parse(localStorage.getItem(CLAVE_GUARDADO) || 'null'); } catch (e) { d = null; }
-    if (!d || d.version !== 1) d = crearDatosEjemplo(hoy());
+    if (!d || d.version !== 2 || !Array.isArray(d.ventas) || !d.ventas.length) d = crearDatosEjemplo(hoy());   // el demo siempre tiene ejemplos
     this.data = d;
     moverFechas(d, hoy());   // la demo siempre "vive" en el día de hoy
     this.guardar();
@@ -1722,7 +1732,7 @@ function crearDatosEjemplo(h){
   const R = (a, b) => a + Math.floor(rnd() * (b - a + 1));
   const elegir = arr => arr[Math.floor(rnd() * arr.length)];
   const hhmm = m => p2(Math.floor(m / 60)) + ':' + p2(m % 60);
-  const d = { version:1, base:h, seq:0, nums:{ venta:10234, presupuesto:517, pedido:86, ticket:40811, factura:7702 },
+  const d = { version:2, base:h, seq:0, nums:{ venta:10234, presupuesto:517, pedido:86, ticket:40811, factura:7702 },
     config: JSON.parse(JSON.stringify(CONFIG_INICIAL)),
     productos:[], ventas:[], presupuestos:[], clientes:[], proveedores:[], pedidos:[], compras:[], dinero:[], cobros:[],
     mstock:[], liquidaciones:[], comAjustes:[], inventarios:[], caja:{}, asist:{}, func:{}, log:[] };
@@ -1801,6 +1811,14 @@ function crearDatosEjemplo(h){
       const v = armarVenta(f, hhmm(m), items, { cli:clienteId, pago, vend: rnd() < .56 ? 'func' : 'duenos', ent,
         desc: rnd() < .1 ? Math.round(sub * .05) : 0, fac: dd > -8 ? rnd() < .86 : rnd() < .997 });
       if (ent && ent.est !== 'entregada') v.it.forEach(i => i.e = 0);
+    });
+  }
+  // Entregas ya hechas en la última semana (para que «Entregadas» siempre muestre algo reciente)
+  for (let dd = -7; dd <= -2; dd++){
+    const f = sumarDias(h, dd); if (diaSemana(f) === 0) continue;
+    d.ventas.filter(v => v.f === f && v.cli && !v.ent && !v.aco).slice(0, 2).forEach(v => {
+      const c = d.clientes.find(x => x.id === v.cli);
+      v.ent = { dir:c.dir, zona:c.zona, f, flete:d.config.fleteBase, nota:'', est:'entregada' }; v.fl = d.config.fleteBase; v.tot += v.fl;
     });
   }
   // Entregas de hoy para mostrar: una en camino y una atrasada de ayer.
@@ -2170,7 +2188,7 @@ const TIPOS_AVISO = [
   { k:'prox30',   t:'Productos que vencen este mes' },
   { k:'entregas', t:'Entregas para hoy' },
   { k:'pedidos',  t:'Pedidos a proveedores demorados' },
-  { k:'factura',  t:'Ventas sin número de factura', duenos:true },
+  { k:'factura',  t:'Ventas sin número de factura' },
   { k:'pagar',    t:'Facturas de proveedores para pagar', duenos:true },
   { k:'limite',   t:'Clientes pasados de su límite de crédito', duenos:true },
   { k:'caja',     t:'Caja del día sin abrir', duenos:true }
@@ -2191,9 +2209,10 @@ function alertas(){   // TODAS las alertas (sin mirar lo leído ni lo apagado)
     if (ent.length) a.push({ k:'entregas', firma:h + ':' + ids(ent), n:ent.length, t:'Entregas para hoy sin terminar', nivel: atr.length ? 'rojo' : 'azul', sec:'entregas', ir:"ir('entregas')" });
     const pedAtr = D().pedidos.filter(pd => estadoPedido(pd) !== 'recibido' && difDias(pd.f, h) > 5);
     if (pedAtr.length) a.push({ k:'pedidos', firma:ids(pedAtr), n:pedAtr.length, t:'Pedidos a proveedores demorados', nivel:'amarillo', sec:'compras', ir:"verCompras('pedidos')" });
+    // Ventas sin número de factura: los dueños ven todas; el funcionario, las que vendió o registró él.
+    const pf = D().ventas.filter(v => pendienteFactura(v) && (esDueno() || v.vend === 'func' || /funcionario/.test(v.u)));
+    if (pf.length) a.push({ k:'factura', firma:ids(pf), n:pf.length, t: esDueno() ? 'Ventas pendientes de factura' : 'Tus ventas sin número de factura', nivel:'amarillo', sec:'vender', ir: esDueno() ? "verVentas('pendiente')" : "verVentas('mias')" });
     if (esDueno()){
-      const pf = D().ventas.filter(pendienteFactura);
-      if (pf.length) a.push({ k:'factura', firma:ids(pf), n:pf.length, t:'Ventas pendientes de factura', nivel:'amarillo', sec:'vender', ir:"verVentas('pendiente')" });
       const pagar = []; Object.values(cpIndice()).forEach(x => x.pendientes.forEach(p => { if (p.compra.venc && difDias(h, p.compra.venc) <= 7) pagar.push(p.compra); }));
       if (pagar.length) a.push({ k:'pagar', firma:ids(pagar), n:pagar.length, t:'Facturas de proveedores por pagar', nivel: pagar.some(c => c.venc < h) ? 'rojo' : 'amarillo', sec:'finanzas', ir:"verFinanzas('cuentas')" });
       const sobre = D().clientes.filter(c => c.limite > 0 && saldoCliente(c.id) > c.limite);
@@ -2342,6 +2361,7 @@ function fraseAviso(x){
     'Entregas para hoy sin terminar': `${n} entrega${s} para hoy`,
     'Pedidos a proveedores demorados': `${n} pedido${s} a proveedores demorado${s}`,
     'Ventas pendientes de factura': `${n} venta${s} sin factura`,
+    'Tus ventas sin número de factura': `${n} venta${s} tuya${s} sin número de factura`,
     'Facturas de proveedores por pagar': `${n} factura${s} de proveedores para pagar esta semana`,
     'Clientes por encima de su límite': `${n} cliente${s} pasado${s} de su límite de crédito`,
     'La caja de hoy no está abierta': 'La caja de hoy no está abierta'
@@ -2623,6 +2643,7 @@ function verVentas(filtro){
   EST_VENDER.tab = 'ventas'; EST_VENTAS.ver = 60;
   if (filtro === 'hoy'){ EST_VENTAS.periodo = 'hoy'; EST_VENTAS.estado = 'todas'; }
   if (filtro === 'pendiente'){ EST_VENTAS.periodo = 'todo'; EST_VENTAS.estado = 'pendiente'; }
+  if (filtro === 'mias'){ EST_VENTAS.periodo = 'todo'; EST_VENTAS.estado = 'pendiente'; EST_VENTAS.vend = 'func'; }
   if (seccionActual !== 'vender') ir('vender'); else RENDER.vender();
 }
 function ventasFiltradas(){
@@ -3245,7 +3266,7 @@ async function aplicarPrecios(){
    ENTREGAS · ventas con envío, hoja de ruta y aviso por WhatsApp
    Lo vendido con envío queda RESERVADO; al marcar «Entregada» sale del stock.
    ===================================================================== */
-const EST_ENT = { vista:'hoy' };
+const EST_ENT = { vista:'hoy', q:'' };
 function chipEntrega(e){ const x = ESTADOS_ENTREGA[e]; return `<span class="chip ${x.c}">${x.t}</span>`; }
 RENDER.entregas = function(){
   const h = hoy(), todas = ventasConEntrega();
@@ -3253,7 +3274,7 @@ RENDER.entregas = function(){
     hoy:      todas.filter(v => v.ent.est !== 'entregada' && v.ent.f <= h),
     manana:   todas.filter(v => v.ent.est !== 'entregada' && v.ent.f === sumarDias(h, 1)),
     proximas: todas.filter(v => v.ent.est !== 'entregada'),
-    entregadas: todas.filter(v => v.ent.est === 'entregada' && difDias(v.ent.f, h) <= 30)
+    entregadas: todas.filter(v => v.ent.est === 'entregada')
   };
   const lista = grupos[EST_ENT.vista].sort((a, b) => a.ent.f.localeCompare(b.ent.f) || a.ent.zona.localeCompare(b.ent.zona));
   encabezado('Entregas', 'Lo que hay que llevar a los clientes.',
@@ -3267,10 +3288,44 @@ RENDER.entregas = function(){
         ${e.est === 'pendiente' ? `<button class="btn btn-linea btn-sm" onclick="marcarEnCamino('${v.id}')">${ico('camion')} Salió</button>` : ''}
         ${e.est !== 'entregada' ? `<button class="btn btn-azul btn-sm" onclick="marcarEntregada('${v.id}')">${ico('ok')} Entregada</button>` : `<small class="muted">Entregada · ${esc(c ? c.tel : '')}</small>`}
       </div></div>`; };
-  $('#vista').innerHTML = pestanas([['hoy', 'Para hoy', grupos.hoy.length, grupos.hoy.some(v => v.ent.f < h)], ['proximas', 'Todas las pendientes', grupos.proximas.length], ['entregadas', 'Entregadas (30 días)']], EST_ENT.vista, 'tabEntregas')
-    + (lista.length ? `<div class="grid g-3">${lista.map(tarjeta).join('')}</div>` : vacio(EST_ENT.vista === 'hoy' ? 'No hay entregas pendientes para hoy.' : 'No hay entregas acá.'));
+  $('#vista').innerHTML = pestanas([['hoy', 'Para hoy', grupos.hoy.length, grupos.hoy.some(v => v.ent.f < h)], ['proximas', 'Todas las pendientes', grupos.proximas.length], ['entregadas', 'Entregadas']], EST_ENT.vista, 'tabEntregas')
+    + (EST_ENT.vista === 'entregadas' ? historialEntregas(lista) : lista.length ? `<div class="grid g-3">${lista.map(tarjeta).join('')}</div>` : vacio(EST_ENT.vista === 'hoy' ? 'No hay entregas pendientes para hoy.' : 'No hay entregas acá.'));
 };
 function tabEntregas(t){ EST_ENT.vista = t; RENDER.entregas(); }
+
+/* ---------- Entregadas: todo el historial, sin que sea una lista eterna ----------
+   - Buscador: por cliente, dirección, zona, Nº de venta o producto.
+   - Sin buscar: la última semana a la vista; el resto del año, cerrado por mes;
+     los años anteriores, cerrados por año (y adentro, por mes). */
+function historialEntregas(lista){
+  const h = hoy(), anio = h.slice(0, 4), q = sinTildes(EST_ENT.q).split(/\s+/).filter(Boolean);
+  lista = lista.slice().sort((a, b) => b.ent.f.localeCompare(a.ent.f));
+  const fila = v => `<button class="fila-lista" onclick="fichaEntrega('${v.id}')"><span><span class="p-nombre">${esc(nombreCli(v.cli))}</span>
+      <span class="p-cod">${esc(v.ent.dir)} · ${esc(v.ent.zona)} · venta Nº ${v.num}</span></span><span class="muted chico">${fMedia(v.ent.f)}</span></button>`;
+  const grupo = (titulo, items, abierto) => `<details class="ent-grupo" ${abierto ? 'open' : ''}><summary><span>${titulo}</span><span class="card-num">${items.length}</span></summary>
+      <div class="lista">${items.map(fila).join('')}</div></details>`;
+  const porMes = items => { const m = {}; items.forEach(v => (m[mesClave(v.ent.f)] = m[mesClave(v.ent.f)] || []).push(v)); return m; };
+  const nombreMes = k => MESES[Number(k.slice(5)) - 1].replace(/^./, c => c.toUpperCase());
+  let cuerpo;
+  if (q.length){
+    const r = lista.filter(v => { const t = sinTildes(nombreCli(v.cli) + ' ' + v.ent.dir + ' ' + v.ent.zona + ' ' + v.num + ' ' + v.it.map(i => i.n).join(' ')); return q.every(w => t.includes(w)); });
+    cuerpo = r.length ? `<div class="card"><div class="card-cab"><div class="card-t">${r.length} entrega${r.length > 1 ? 's' : ''} encontrada${r.length > 1 ? 's' : ''}</div></div><div class="lista">${r.map(fila).join('')}</div></div>`
+      : vacio('No hay entregas con «' + esc(EST_ENT.q) + '».');
+  } else {
+    const semana = lista.filter(v => difDias(v.ent.f, h) <= 7);
+    const esteAnio = lista.filter(v => difDias(v.ent.f, h) > 7 && v.ent.f.slice(0, 4) === anio);
+    const antes = lista.filter(v => v.ent.f.slice(0, 4) < anio);
+    const meses = porMes(esteAnio), anios = {}; antes.forEach(v => (anios[v.ent.f.slice(0, 4)] = anios[v.ent.f.slice(0, 4)] || []).push(v));
+    cuerpo = `<div class="card"><div class="card-cab"><div class="card-t">Última semana <span class="card-num">${semana.length}</span></div></div>
+        ${semana.length ? `<div class="lista">${semana.map(fila).join('')}</div>` : vacio('No hubo entregas en la última semana.')}</div>
+      ${Object.keys(meses).length ? `<h3 class="sub-t mt">${anio}</h3>` + Object.keys(meses).sort().reverse().map(k => grupo(nombreMes(k), meses[k])).join('') : ''}
+      ${Object.keys(anios).sort().reverse().map(a => { const m = porMes(anios[a]);
+        return `<details class="ent-grupo anio"><summary><span>${a}</span><span class="card-num">${anios[a].length}</span></summary>${Object.keys(m).sort().reverse().map(k => grupo(nombreMes(k), m[k])).join('')}</details>`; }).join('')}`;
+  }
+  return `<div class="herr">${buscador('e-q', EST_ENT.q, 'Buscar por cliente, dirección o Nº de venta', 'filtroEntQ')}<span class="muted chico">${lista.length} entregas en total</span></div>${cuerpo}`;
+}
+let _tEQ;
+function filtroEntQ(v){ EST_ENT.q = v; clearTimeout(_tEQ); _tEQ = setTimeout(() => { RENDER.entregas(); const i = $('#e-q'); i.focus(); i.setSelectionRange(v.length, v.length); }, 220); }
 
 function fichaEntrega(id){
   const v = venta(id), e = v.ent, c = cliente(v.cli);
